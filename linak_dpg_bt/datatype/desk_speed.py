@@ -1,7 +1,12 @@
+#
+#
+#
+
 import struct
 
 
 class DeskSpeed:
+    
     @classmethod
     def from_bytes(cls, data):
         return cls(struct.unpack('H', data[2:4])[0] & 0xFFF)
@@ -16,3 +21,7 @@ class DeskSpeed:
     @property
     def parsed(self):
         return (self.raw * 0.09765625) / 10.0
+    
+    def __str__(self):
+        return "%s[%s]" % (self.__class__.__name__, self.raw)
+    

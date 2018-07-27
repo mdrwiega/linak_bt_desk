@@ -1,8 +1,13 @@
+#
+#
+#
+
 from .desk_position import DeskPosition
 from .desk_speed import DeskSpeed
 
 
 class HeightSpeed:
+    
     @classmethod
     def from_bytes(cls, data):
         height = DeskPosition.from_bytes(data)
@@ -21,3 +26,7 @@ class HeightSpeed:
     @property
     def speed(self):
         return self._speed
+
+    def __str__(self):
+        return "%s[%s %s]" % (self.__class__.__name__, self._height, self._speed)
+    

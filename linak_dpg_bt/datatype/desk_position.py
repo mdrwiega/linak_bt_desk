@@ -1,8 +1,20 @@
+#
+#
+#
+
 import struct
 import math
 
 
 class DeskPosition:
+    
+    @classmethod
+    def create(cls, data):
+        if data[2] != 1:
+            ## not set
+            return None
+        return cls.from_bytes(data[3:])
+    
     @classmethod
     def from_bytes(cls, data):
         return cls(struct.unpack('<H', data[0:2])[0])
@@ -28,8 +40,16 @@ class DeskPosition:
 
     @property
     def cm(self):
+        if self.raw == None:
+            return None
         return math.ceil(self.raw / 100.0)
 
     @property
     def human_cm(self):
+        if self.cm == None:
+            return None
         return "%d cm" % self.cm
+    
+    def __str__(self):
+        return "%s[%s]" % (self.__class__.__name__, self.human_cm)
+    

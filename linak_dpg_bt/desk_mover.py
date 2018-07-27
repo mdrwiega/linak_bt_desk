@@ -1,16 +1,21 @@
+#
+#
+#
+
 import logging
 from time import sleep
 
 import linak_dpg_bt.constants as constants
 from threading import Timer
 
-from .desk_position import DeskPosition
-from .height_speed import HeightSpeed
+from .datatype.desk_position import DeskPosition
+from .datatype.height_speed import HeightSpeed
+
+
+_LOGGER = logging.getLogger(__name__)
 
 MOVE_TO_HANDLE = 0x003a
 REFERENCE_OUTPUT_NOTIFY_HANDLE = 0x001e  # Used for desk offset / speed notifications
-
-_LOGGER = logging.getLogger(__name__)
 
 
 class DeskMover:

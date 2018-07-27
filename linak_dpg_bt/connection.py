@@ -4,6 +4,7 @@ Taken from python-eq3bt/master/eq3bt/connection.py
 A simple wrapper for bluepy's btle.Connection.
 Handles Connection duties (reconnecting etc.) transparently.
 """
+
 import logging
 import codecs
 
@@ -12,11 +13,12 @@ from bluepy import btle
 
 from time import sleep
 from .dpg_command import DPGCommand
+import linak_service
 
-DEFAULT_TIMEOUT = 1
 
 _LOGGER = logging.getLogger(__name__)
 
+DEFAULT_TIMEOUT = 1
 DPG_COMMAND_HANDLE = 0x0014
 
 
@@ -30,6 +32,7 @@ class BTLEConnection(btle.DefaultDelegate):
         self._conn = None
         self._mac = mac
         self._callbacks = {}
+        self.currentCommand = None
 
     def __enter__(self):
         """
@@ -37,6 +40,9 @@ class BTLEConnection(btle.DefaultDelegate):
         :rtype: btle.Peripheral
         :return:
         """
+        if self._conn != None:
+            return self
+        
         self._conn = btle.Peripheral()
         self._conn.withDelegate(self)
         _LOGGER.debug("Trying to connect to %s", self._mac)
@@ -54,7 +60,9 @@ class BTLEConnection(btle.DefaultDelegate):
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        self.disconnect()
+        ## do nothing
+        pass
+#         self.disconnect()
 
     def __del__(self):
         self.disconnect()
@@ -82,11 +90,11 @@ class BTLEConnection(btle.DefaultDelegate):
     def make_request(self, handle, value, timeout=DEFAULT_TIMEOUT, with_response=True):
         """Write a GATT Command without callback - not utf-8."""
         try:
-            _LOGGER.debug("Writing %s to %s with with_response=%s", codecs.encode(value, 'hex'), handle, with_response)
+            _LOGGER.debug("Writing request %s to %s with with_response=%s", codecs.encode(value, 'hex'), handle, with_response)
             self._conn.writeCharacteristic(handle, value, withResponse=with_response)
-            if timeout:
-                _LOGGER.debug("Waiting for notifications for %s", timeout)
-                self._conn.waitForNotifications(timeout)
+            currtimeout = max(timeout, 1)
+            _LOGGER.debug("Waiting for notifications for %s", currtimeout)
+            self._conn.waitForNotifications(currtimeout)
         except btle.BTLEException as ex:
             _LOGGER.error("Got exception from bluepy while making a request: %s", ex)
             raise ex
@@ -94,8 +102,28 @@ class BTLEConnection(btle.DefaultDelegate):
     def read_characteristic(self, handle):
         """Read a GATT Characteristic."""
         try:
-            _LOGGER.debug("Reading %s", handle)
-            return self._conn.readCharacteristic(handle)
+            _LOGGER.debug("Reading value %s", handle)
+            val = self._conn.readCharacteristic(handle)
+            bytes = bytearray(val)
+            _LOGGER.debug("Got value [%s]", " ".join("0x{:X}".format(x) for x in bytes) )
+            return val
+        except btle.BTLEException as ex:
+            _LOGGER.error("Got exception from bluepy while making a request: %s", ex)
+            raise ex
+        
+    def read_characteristic_by_uuid(self, characteristicUuid):
+        """Read a GATT Characteristic."""
+        try:
+            uuidValue = characteristicUuid.value 
+            _LOGGER.debug("Reading char: %s", characteristicUuid)
+            chList = self._conn.getCharacteristics(uuid = uuidValue)
+            if len(chList) != 1:
+                _LOGGER.debug("Got many values - returning None")
+                return None
+            val = chList[0]
+            bytes = bytearray(val.read())
+            _LOGGER.debug("Got value [%s]", " ".join("0x{:X}".format(x) for x in bytes) )
+            return val
         except btle.BTLEException as ex:
             _LOGGER.error("Got exception from bluepy while making a request: %s", ex)
             raise ex
@@ -103,8 +131,39 @@ class BTLEConnection(btle.DefaultDelegate):
     def subscribe_to_notification(self, notification_handle, notification_resp_handle, callback):
         self.make_request(notification_handle, struct.pack('BB', 1, 0), with_response=False)
         self.set_callback(notification_resp_handle, callback)
+        
+    def subscribe_to_char(self, charObj, callback):
+        value = struct.pack('BB', 1, 0)
+        with_response = False
+        _LOGGER.debug("Writing callback %s to %s with with_response=%s", codecs.encode(value, 'hex'), linak_service.Characteristic( charObj.uuid ), with_response)
+        charObj.write(value, with_response)
+        timeout = max(DEFAULT_TIMEOUT, 1)
+        _LOGGER.debug("Waiting for notifications for %s", timeout)
+        self._conn.waitForNotifications(timeout)
+            
+        notification_resp_handle = charObj.getHandle()
+        self.set_callback(notification_resp_handle, callback)
+
+    def subscribe_to_char_by_uuid(self, characteristicUuid, callback):
+        charObj = self.read_characteristic_by_uuid(characteristicUuid)
+        self.subscribe_to_char(charObj, callback)
 
     def dpg_command(self, command_type):
-        value = DPGCommand.wrap_read_command(command_type)
-        self.make_request(DPG_COMMAND_HANDLE, value)
+        charObj = self.read_characteristic_by_uuid(linak_service.Characteristic.DPG)
+        self.command(charObj, command_type)
+
+    def command(self, charObj, command_type):
+        self.currentCommand = command_type
+        value = command_type.wrap_read_command()
+        with_response = False
+        _LOGGER.debug("Writing command %s to %s with with_response=%s", codecs.encode(value, 'hex'), linak_service.Characteristic( charObj.uuid ), with_response)
+        charObj.write(value, with_response)
+        timeout = max(DEFAULT_TIMEOUT, 1)
+        _LOGGER.debug("Waiting for notifications for %s", timeout)
+        self._conn.waitForNotifications(timeout)
+        ## here notification callback is already handled
+#         _LOGGER.debug("Command handled")
+        self.currentCommand = None
         sleep(0.2)
+    
+    
