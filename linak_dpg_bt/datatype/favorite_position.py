@@ -2,7 +2,7 @@
 #
 #
 
-from desk_position import *
+from .desk_position import *
 
 
 class FavoritePosition:

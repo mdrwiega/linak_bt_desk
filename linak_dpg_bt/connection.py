@@ -13,7 +13,7 @@ from bluepy import btle
 
 from time import sleep
 from .dpg_command import DPGCommand
-import linak_service
+import linak_dpg_bt.linak_service as linak_service
 
 
 _LOGGER = logging.getLogger(__name__)
@@ -135,7 +135,8 @@ class BTLEConnection(btle.DefaultDelegate):
     def subscribe_to_char(self, charObj, callback):
         value = struct.pack('BB', 1, 0)
         with_response = False
-        _LOGGER.debug("Writing callback %s to %s with with_response=%s", codecs.encode(value, 'hex'), linak_service.Characteristic( charObj.uuid ), with_response)
+        serviceChar = linak_service.Characteristic( charObj.uuid )
+        _LOGGER.debug("Writing callback %s to %s with with_response=%s", codecs.encode(value, 'hex'), serviceChar, with_response)
         charObj.write(value, with_response)
         timeout = max(DEFAULT_TIMEOUT, 1)
         _LOGGER.debug("Waiting for notifications for %s", timeout)
