@@ -7,6 +7,7 @@ from bluepy import btle
 from enum import Enum, EnumMeta, unique
 
 
+
 class StringEnumMeta(EnumMeta):
     def __call__(cls, value, *args, **kw):
         strval = str(value).upper()
@@ -14,7 +15,8 @@ class StringEnumMeta(EnumMeta):
     
 
 @unique
-class Service(Enum):
+class Service(Enum, metaclass=StringEnumMeta):
+    ## works for Python 2
     __metaclass__ = StringEnumMeta
     
     ## contains tow accessors: 'name' and 'value'
@@ -31,7 +33,8 @@ class Service(Enum):
 
 
 @unique
-class Characteristic(Enum):
+class Characteristic(Enum, metaclass=StringEnumMeta):
+    ## works for Python 2
     __metaclass__ = StringEnumMeta
     
     ## contains tow accessors: 'name' and 'value'
