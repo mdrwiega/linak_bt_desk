@@ -8,14 +8,13 @@ from time import sleep
 import linak_dpg_bt.constants as constants
 from threading import Timer
 
+import linak_dpg_bt.constants as constants
+##import linak_dpg_bt.linak_service as linak_service
 from .datatype.desk_position import DeskPosition
 from .datatype.height_speed import HeightSpeed
 
 
 _LOGGER = logging.getLogger(__name__)
-
-MOVE_TO_HANDLE = 0x003a
-REFERENCE_OUTPUT_NOTIFY_HANDLE = 0x001e  # Used for desk offset / speed notifications
 
 
 class DeskMover:
@@ -32,7 +31,7 @@ class DeskMover:
         self._stopTimer.start()
 
         with self._conn as conn:
-            conn.subscribe_to_notification(REFERENCE_OUTPUT_NOTIFY_HANDLE, constants.REFERENCE_OUTPUT_HANDLE,
+            conn.subscribe_to_notification(constants.REFERENCE_OUTPUT_NOTIFY_HANDLE, constants.REFERENCE_OUTPUT_HANDLE,
                                            self._handle_notification)
 
             for _ in range(150):
@@ -50,7 +49,7 @@ class DeskMover:
 
     def _send_move_to(self):
         _LOGGER.debug("Sending move to: %d", self._target)
-        self._conn.make_request(MOVE_TO_HANDLE, DeskPosition.bytes_from_raw(self._target))
+        self._conn.make_request(constants.MOVE_TO_HANDLE, DeskPosition.bytes_from_raw(self._target))
 
     def _stop_move(self):
         _LOGGER.debug("Move stopped")

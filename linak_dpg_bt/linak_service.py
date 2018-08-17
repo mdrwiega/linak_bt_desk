@@ -37,17 +37,22 @@ class Characteristic(Enum, metaclass=StringEnumMeta):
     ## works for Python 2
     __metaclass__ = StringEnumMeta
     
-    ## contains tow accessors: 'name' and 'value'
+    ## contains two accessors: 'name' and 'value'
     
-    DEVICE_NAME = "00002A00-0000-1000-8000-00805F9B34FB"
-#     ONE(UUID.fromString("99FA0031-338A-1024-8A49-009C0215F78A")),
-#     TWO(UUID.fromString("99FA0032-338A-1024-8A49-009C0215F78A")),
-#     THREE(UUID.fromString("99FA0033-338A-1024-8A49-009C0215F78A")),
-#     FOUR(UUID.fromString("99FA0034-338A-1024-8A49-009C0215F78A"));
+    ## generic access
+    DEVICE_NAME  = "00002A00-0000-1000-8000-00805F9B34FB"
+    MANUFACTURER = "00002A29-0000-1000-8000-00805F9B34FB"
+    MODEL_NUMBER = "00002A24-0000-1000-8000-00805F9B34FB"
+    
+    ## reference input
+    MOVE = "99FA0031-338A-1024-8A49-009C0215F78A"      # move to
+#     CTRL2 = "99FA0032-338A-1024-8A49-009C0215F78A"
+#     CTRL3 = "99FA0033-338A-1024-8A49-009C0215F78A"
+#     CTRL4 = "99FA0034-338A-1024-8A49-009C0215F78A"
 
+    ## reference output
     HEIGHT_SPEED = "99FA0021-338A-1024-8A49-009C0215F78A"            ## ONE
     MASK         = "99FA0029-338A-1024-8A49-009C0215F78A"
-    
 #             TWO(UUID.fromString("99FA0022-338A-1024-8A49-009C0215F78A")),
 #             THREE(UUID.fromString("99FA0023-338A-1024-8A49-009C0215F78A")),
 #             FOUR(UUID.fromString("99FA0024-338A-1024-8A49-009C0215F78A")),
@@ -63,6 +68,20 @@ class Characteristic(Enum, metaclass=StringEnumMeta):
     ERROR       = "99FA0003-338A-1024-8A49-009C0215F78A"
 
 
+    @classmethod
+    def printCharacteristic(cls, characteristic):
+        val = "-rns-"
+        if characteristic.supportsRead():
+#             val = characteristic.read().decode("utf-8") 
+            val = characteristic.read() 
+        return "Char: %s[%s] %s %s %s" % (
+                    characteristic.uuid, 
+                    characteristic.uuid.getCommonName(), 
+                    hex(characteristic.getHandle()), 
+                    characteristic.propertiesToString(),
+                    val
+                )
+    
     def __str__(self):
         return "%s.%s[%s]" % (self.__class__.__name__, self.name, self.value ) 
 

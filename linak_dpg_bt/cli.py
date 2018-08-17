@@ -6,8 +6,8 @@ import logging
 import click
 import re
 
-from desk_position import DeskPosition
-from linak_device import LinakDesk
+from .datatype.desk_position import DeskPosition
+from .linak_device import LinakDesk
 
 
 pass_desk = click.make_pass_decorator(LinakDesk)
@@ -32,7 +32,7 @@ def cli(ctx, bdaddr, debug):
     desk = LinakDesk(bdaddr)
     desk.read_dpg_data()
     
-    print "State:", desk
+    print( "State:", desk)
     
     ctx.obj = desk
 

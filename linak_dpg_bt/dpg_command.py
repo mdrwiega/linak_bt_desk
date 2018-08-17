@@ -8,14 +8,16 @@ import logging
 
 from enum import Enum, unique
 
+from .datatype.desk_position import DeskPosition
+
 
 _LOGGER = logging.getLogger(__name__)
-    
+
 
 @unique
 class DPGCommand(Enum):
     ## contains tow accessors: 'name' and 'value'
-    
+     
     PRODUCT_INFO = 8
     GET_SETUP = 10            ## does not work
 #     CURRENT_TIME(22),
@@ -43,7 +45,7 @@ class DPGCommand(Enum):
 #     GET_MASSAGE_PARAMETERS(244),
 #     GET_SET_MASSAGE_VALUES(245),
 #     GET_LOG_ENTRY(144);
-    
+     
     @classmethod
     def is_valid_response(cls, data):
         if data[0] != 0x1:
@@ -54,16 +56,29 @@ class DPGCommand(Enum):
             _LOGGER.debug("These are not the data you're looking for - move along")
             return False 
         return True
-    
+     
     @classmethod
     def parse_data(cls, data):
         type = data[1]
         value = data[2:]
-        
+         
         #TODO: implement
-        
+         
         return None
     
-    def wrap_read_command(self):
+    @classmethod
+    def wrap_read_command(cls, value):
+        return struct.pack('BBB', 0x7F, value, 0x0)
+     
+    def wrap_command(self):
         return struct.pack('BBB', 0x7F, self.value, 0x0)
+    
+#     @property
+#     def raw_value(self):
+#         return codecs.encode(self._data, 'hex')
+# 
+#     @property
+#     def decoded_value(self):
+#         return self.raw_value
+    
 
