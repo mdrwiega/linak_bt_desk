@@ -56,13 +56,13 @@ class LinakDesk:
     def favorite_position_2(self):
         return self._wait_for_variable('_fav_position_2')
  
-     @property
-     def favorite_position_3(self):
-         return self._wait_for_variable('_fav_position_3')
+    @property
+    def favorite_position_3(self):
+        return self._wait_for_variable('_fav_position_3')
  
-     @property
-     def favorite_position_4(self):
-         return self._wait_for_variable('_fav_position_4')
+    @property
+    def favorite_position_4(self):
+        return self._wait_for_variable('_fav_position_4')
 
     @property
     def current_height(self):
@@ -83,41 +83,60 @@ class LinakDesk:
             """ We need to query for name before doing anything, without it device doesnt respond """
             self._name = conn.read_characteristic(constants.NAME_HANDLE)
 
-            conn.subscribe_to_notification(constants.DPG_COMMAND_NOTIFY_HANDLE, constants.DPG_COMMAND_HANDLE,
-                                           self._handle_dpg_notification)
+#             conn.subscribe_to_notification(constants.DPG_COMMAND_NOTIFY_HANDLE, 
+#                                            constants.DPG_COMMAND_HANDLE, self._handle_dpg_notification)
+
+            conn.subscribe_to_notification_enum(linak_service.Characteristic.DPG, self._handle_dpg_notification)
+            conn.subscribe_to_notification_enum(linak_service.Characteristic.ERROR, self._handle_error_notification)
+            
+            conn.subscribe_to_notification_enum(linak_service.Characteristic.HEIGHT_SPEED, self._handle_reference_notification)
+            conn.subscribe_to_notification_enum(linak_service.Characteristic.TWO, self._handle_reference_notification)
+            conn.subscribe_to_notification_enum(linak_service.Characteristic.THREE, self._handle_reference_notification)
+            conn.subscribe_to_notification_enum(linak_service.Characteristic.FOUR, self._handle_reference_notification)
+            conn.subscribe_to_notification_enum(linak_service.Characteristic.FIVE, self._handle_reference_notification)
+            conn.subscribe_to_notification_enum(linak_service.Characteristic.SIX, self._handle_reference_notification)
+            conn.subscribe_to_notification_enum(linak_service.Characteristic.SEVEN, self._handle_reference_notification)
+            conn.subscribe_to_notification_enum(linak_service.Characteristic.EIGHT, self._handle_reference_notification)
 
             # conn.dpg_command(constants.PROP_USER_ID)
             # conn.dpg_command(constants.PROP_GET_CAPABILITIES)
             conn.dpg_command(constants.PROP_DESK_OFFSET)
             conn.dpg_command(constants.PROP_MEMORY_POSITION_1)
             conn.dpg_command(constants.PROP_MEMORY_POSITION_2)
+            
+            conn.send_dpg_command(DPGCommand.PRODUCT_INFO)
+            conn.send_dpg_command(DPGCommand.GET_SET_MEMORY_POSITION_3)
+            conn.send_dpg_command(DPGCommand.GET_SET_MEMORY_POSITION_4)
+            
             self._height_speed = HeightSpeed.from_bytes(conn.read_characteristic(constants.REFERENCE_OUTPUT_HANDLE))
+            
+            conn.send_control_command( ControlCommand.MOVE_1_UP )
 
 
-#     def read_dpg_data(self):
+#     def new_read_dpg_data(self):
 #         _LOGGER.debug("Querying the device..")
 # 
 #         with self._conn as conn:
 #             """ We need to query for name before doing anything, without it device doesnt respond """
-#             self._name = conn.get_characteristic_by_uuid(linak_service.Characteristic.DEVICE_NAME).read()
+#             self._name = conn.get_characteristic_by_enum(linak_service.Characteristic.DEVICE_NAME).read()
 #             
-#             conn.subscribe_to_char_by_uuid(linak_service.Characteristic.DPG, self._handle_dpg_notification)
-#             conn.subscribe_to_char_by_uuid(linak_service.Characteristic.ERROR, self._handle_error_notification)
+#             conn.subscribe_to_notification_enum(linak_service.Characteristic.DPG, self._handle_dpg_notification)
+#             conn.subscribe_to_notification_enum(linak_service.Characteristic.ERROR, self._handle_error_notification)
 #             
 #             self.print_services()
 #             
 #             ## fetch data on demand
-# #             conn.new_dpg_command(DPGCommand.PRODUCT_INFO)
-# #             conn.new_dpg_command(DPGCommand.GET_SETUP)
-# #             conn.new_dpg_command(DPGCommand.USER_ID)
-# #             conn.new_dpg_command(DPGCommand.GET_CAPABILITIES)
-# #             conn.new_dpg_command(DPGCommand.REMINDER_SETTING)
-#             conn.new_dpg_command(DPGCommand.DESK_OFFSET)
+# #             conn.send_dpg_command(DPGCommand.PRODUCT_INFO)
+# #             conn.send_dpg_command(DPGCommand.GET_SETUP)
+# #             conn.send_dpg_command(DPGCommand.USER_ID)
+# #             conn.send_dpg_command(DPGCommand.GET_CAPABILITIES)
+# #             conn.send_dpg_command(DPGCommand.REMINDER_SETTING)
+#             conn.send_dpg_command(DPGCommand.DESK_OFFSET)
 # #             
-#             conn.new_dpg_command(DPGCommand.GET_SET_MEMORY_POSITION_1)
-#             conn.new_dpg_command(DPGCommand.GET_SET_MEMORY_POSITION_2)
-# #             conn.new_dpg_command(DPGCommand.GET_SET_MEMORY_POSITION_3)
-# #             conn.new_dpg_command(DPGCommand.GET_SET_MEMORY_POSITION_4)
+#             conn.send_dpg_command(DPGCommand.GET_SET_MEMORY_POSITION_1)
+#             conn.send_dpg_command(DPGCommand.GET_SET_MEMORY_POSITION_2)
+# #             conn.send_dpg_command(DPGCommand.GET_SET_MEMORY_POSITION_3)
+# #             conn.send_dpg_command(DPGCommand.GET_SET_MEMORY_POSITION_4)
 #             
 # #             ## discovering services
 # #             peripheral = conn._conn
@@ -125,7 +144,7 @@ class LinakDesk:
 # #             for s in services:
 # #                 self._handle_discovered_service(s)
 # 
-#             charData = conn.get_characteristic_by_uuid(linak_service.Characteristic.HEIGHT_SPEED).read()
+#             charData = conn.get_characteristic_by_enum(linak_service.Characteristic.HEIGHT_SPEED).read()
 #             if charData != None:
 #                 self._height_speed = datatype.HeightSpeed.from_bytes(charData)
 #             
@@ -172,7 +191,7 @@ class LinakDesk:
     def _with_desk_offset(self, value):
         return DeskPosition(value.raw + self.desk_offset.raw)
 
-    def _handle_dpg_notification(self, data):
+    def _handle_dpg_notification(self, cHandle, data):
         """Handle Callback from a Bluetooth (GATT) request."""
         _LOGGER.debug("Received notification from the device..")
 
@@ -251,8 +270,8 @@ class LinakDesk:
     def read_current_position(self):
         _LOGGER.debug("Reading current position")
         with self._conn as conn:
-            conn.new_dpg_command(DPGCommand.DESK_OFFSET)
-            charData = conn.get_characteristic_by_uuid(linak_service.Characteristic.HEIGHT_SPEED).read()
+            conn.send_dpg_command(DPGCommand.DESK_OFFSET)
+            charData = conn.read_characteristic_by_enum(linak_service.Characteristic.HEIGHT_SPEED)
             if charData == None:
                 return None
             heightSpeed = datatype.HeightSpeed.from_bytes(charData)
@@ -263,7 +282,7 @@ class LinakDesk:
     def read_favorite_number(self):
         _LOGGER.debug("Reading favourities number")
         with self._conn as conn:
-            conn.new_dpg_command(DPGCommand.GET_CAPABILITIES)
+            conn.send_dpg_command(DPGCommand.GET_CAPABILITIES)
             caps = self._wait_for_variable("_capabilities")
             if caps == None:
                 return None
@@ -274,22 +293,20 @@ class LinakDesk:
         ## custom: 71, 64 | 0
         ## standard: 71, 0
         with self._conn as conn:
-            value = struct.pack('BB', 71, 0)
-            conn.write_to_char( linak_service.Characteristic.COMMAND, value, False )
+            conn.send_control_command( ControlCommand.MOVE_1_UP )
      
     def moveDown(self):
         ## custom: 70, 64 | 0
         ## standard: 70, 0
         with self._conn as conn:
-            value = struct.pack('BB', 70, 0)
-            conn.write_to_char( linak_service.Characteristic.COMMAND, value, False )
+            conn.send_control_command( ControlCommand.MOVE_1_DOWN )
      
     def stopMoving(self):
         ## custom: 255, 64 | 0
         ## standard: 255, 0
         with self._conn as conn:
             value = struct.pack('BB', 255, 0)
-            conn.write_to_char( linak_service.Characteristic.COMMAND, value )
+            conn.write_to_char( linak_service.Characteristic.CONTROL, value )
 
 # #     def _handle_discovered_service(self, service):
 # #         if service.uuid == linak_service.Service.GENERIC_ACCESS:
@@ -327,15 +344,7 @@ class LinakDesk:
 # #                 self._conn.command(dpgChar, DPGCommand.GET_SET_MEMORY_POSITION_2)
 # # #                 self._conn.command(dpgChar, DPGCommand.GET_SET_MEMORY_POSITION_3)
 # # #                 self._conn.command(dpgChar, DPGCommand.GET_SET_MEMORY_POSITION_4)
-#
-#     def _handle_error_notification(self, data):
-#         """Handle Callback from a Bluetooth (GATT) errors."""
-#         
-#         ### convert string to byte array
-#         data = bytearray(data)
-# 
-#         _LOGGER.debug("Received error data: [%s]", " ".join("0x{:X}".format(x) for x in data) )
-# 
+ 
 #     def print_services(self):
 #         _LOGGER.debug("Discovering services")
 #         with self._conn as conn:
@@ -361,3 +370,20 @@ class LinakDesk:
 # #                 _LOGGER.debug("Desc: %s", desc)
 
 
+    def _handle_error_notification(self, cHandle, data):
+        """Handle Callback from a Bluetooth (GATT) errors."""
+         
+        ### convert string to byte array
+        data = bytearray(data)
+ 
+        _LOGGER.debug("XXXXX Received error data: [%s]", " ".join("0x{:X}".format(x) for x in data) )
+        
+    def _handle_reference_notification(self, cHandle, data):
+        """Handle Callback from a Bluetooth (GATT) reference."""
+         
+        ### convert string to byte array
+        data = bytearray(data)
+ 
+        _LOGGER.debug("....... Received reference data: [%s]", " ".join("0x{:X}".format(x) for x in data) )
+        
+        

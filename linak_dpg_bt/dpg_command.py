@@ -68,10 +68,11 @@ class DPGCommand(Enum):
     
     @classmethod
     def wrap_read_command(cls, value):
+        ## 0x7F is Byte.MAX_VALUE
         return struct.pack('BBB', 0x7F, value, 0x0)
      
     def wrap_command(self):
-        return struct.pack('BBB', 0x7F, self.value, 0x0)
+        return self.wrap_read_command(self.value)
     
 #     @property
 #     def raw_value(self):
@@ -82,3 +83,23 @@ class DPGCommand(Enum):
 #         return self.raw_value
     
 
+
+
+@unique
+class ControlCommand(Enum):
+    ## contains tow accessors: 'name' and 'value'
+    
+    MOVE_1_DOWN = 70
+    MOVE_1_UP = 71
+    
+    
+    def wrap_command(self):
+        ## 0x7F is Byte.MAX_VALUE
+        isCustomSpeed = False
+        functionBit = 0
+        if isCustomSpeed:
+            return struct.pack('BB', self.value, 64 | functionBit)
+        else:
+            return struct.pack('BB', self.value, 0x0)
+    
+        
