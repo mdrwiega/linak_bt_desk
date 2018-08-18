@@ -13,7 +13,7 @@ from bluepy import btle
 
 from time import sleep
 
-from .dpg_command import DPGCommand
+from .command import DPGCommand
 import linak_dpg_bt.linak_service as linak_service
 import linak_dpg_bt.constants as constants
 

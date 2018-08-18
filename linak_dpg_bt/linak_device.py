@@ -13,7 +13,7 @@ import linak_dpg_bt.constants as constants
 from .connection import BTLEConnection
 from .desk_mover import DeskMover
 from .datatype.desk_position import DeskPosition
-from .dpg_command import *
+from .command import *
 from .datatype.height_speed import HeightSpeed
 
 
