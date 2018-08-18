@@ -74,7 +74,7 @@ class Characteristic(Enum, metaclass=CharacteristicEnumMeta):
     MODEL_NUMBER = ("00002A24-0000-1000-8000-00805F9B34FB", 0x1A)
     
     ## reference input
-    MOVE = ("99FA0031-338A-1024-8A49-009C0215F78A", 0x3A)      # move to
+    CTRL1 = ("99FA0031-338A-1024-8A49-009C0215F78A", 0x3A)      # move to
 #     CTRL2 = ("99FA0032-338A-1024-8A49-009C0215F78A"
 #     CTRL3 = ("99FA0033-338A-1024-8A49-009C0215F78A"
 #     CTRL4 = ("99FA0034-338A-1024-8A49-009C0215F78A"
@@ -109,7 +109,7 @@ class Characteristic(Enum, metaclass=CharacteristicEnumMeta):
 
 
     def __str__(self):
-        return "%s.%s[%s, %s]" % (self.__class__.__name__, self.name, self.uuid(), self.handle() )
+        return "%s.%s[%s, %s]" % (self.__class__.__name__, self.name, self.uuid(), hex(self.handle()) )
 
 
     @classmethod

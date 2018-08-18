@@ -74,10 +74,11 @@ class BTLEConnection(btle.DefaultDelegate):
 
     def handleNotification(self, handle, data):
         """Handle Callback from a Bluetooth (GATT) request."""
-        _LOGGER.debug("Got notification from %s: %s", hex(handle), codecs.encode(data, 'hex'))
-#         _LOGGER.debug("Got notification from %s: %s", "".join("0x{:X}".format(handle)), codecs.encode(data, 'hex'))
+        _LOGGER.debug("Got notification from %s: %s", linak_service.Characteristic(handle), codecs.encode(data, 'hex'))
         if handle in self._callbacks:
             self._callbacks[handle](handle, data)
+        else:
+            _LOGGER.debug("Notification does not have callback")
 
     @property
     def mac(self):
@@ -134,19 +135,18 @@ class BTLEConnection(btle.DefaultDelegate):
     def send_control_command(self, controlCommand):
         self.send_command(linak_service.Characteristic.CONTROL, controlCommand)
     
-    def send_directional_command(self, command_type):
-        #TODO: implement: move_to and stop_move_to
-        raise NotImplementedError('You need to define this method in derived class!')
+    def send_directional_command(self, directionalCommand):
+        self.send_command(linak_service.Characteristic.CTRL1, directionalCommand)
     
     def send_command(self, characteristicEnum, commandObj, with_response = True):
         self.currentCommand = commandObj
         value = commandObj.wrap_command()
-        _LOGGER.debug("Writing command %s to %s with with_response=%s", codecs.encode(value, 'hex'), characteristicEnum, with_response)
+        _LOGGER.debug("Sending command %s[%s] to %s with_response=%s", commandObj, codecs.encode(value, 'hex'), characteristicEnum, with_response)
         self._conn.writeCharacteristic( characteristicEnum.handle(), value, withResponse=with_response)
 #         characteristicObj = self.get_characteristic_by_enum(characteristicEnum)
 #         characteristicObj.write(value, with_response)
         timeout = max(constants.DEFAULT_TIMEOUT, 1)
-        _LOGGER.debug("Waiting for notifications for %s", timeout)
+        ##_LOGGER.debug("Waiting for notifications for %s", timeout)
         self._conn.waitForNotifications(timeout)
         ### here notification callback is already handled
         ##_LOGGER.debug("Command handled")
@@ -154,13 +154,14 @@ class BTLEConnection(btle.DefaultDelegate):
         sleep(0.2)
     
     def subscribe_to_notification_enum(self, characteristicEnum, callback):
+        _LOGGER.debug("Subscribing to %s", characteristicEnum)
         value = struct.pack('BB', 1, 0)
-        self.write_to_char(characteristicEnum, value, False)
+        self.write_to_characteristic_by_enum(characteristicEnum, value, False)
         notification_resp_handle = characteristicEnum.handle()
         self.set_callback(notification_resp_handle, callback)
 
     def read_characteristic_by_enum(self, characteristicEnum):
-        """Read a GATT Characteristic."""
+        """Read a GATT Characteristic in sync mode."""
         try:
             _LOGGER.debug("Reading char: %s", characteristicEnum)
 #             _LOGGER.debug("This: %s %s" % (self, self._conn) )
@@ -173,8 +174,8 @@ class BTLEConnection(btle.DefaultDelegate):
             _LOGGER.error("Got exception from bluepy while making a request: %s", ex)
             raise ex
 
-    def write_to_char(self, characteristicEnum, value, with_response = True):
-        _LOGGER.debug("Writing value %s to %s with with_response=%s", codecs.encode(value, 'hex'), characteristicEnum, with_response)
+    def write_to_characteristic_by_enum(self, characteristicEnum, value, with_response = True):
+        ##_LOGGER.debug("Writing value %s to %s with with_response=%s", codecs.encode(value, 'hex'), characteristicEnum, with_response)
         self._conn.writeCharacteristic( characteristicEnum.handle(), value, withResponse=with_response)
 #         charObj = self.get_characteristic_by_enum( characteristicEnum )
 #         charObj.write(value, with_response)
@@ -194,14 +195,13 @@ class BTLEConnection(btle.DefaultDelegate):
                 _LOGGER.debug("Got many values - returning None")
                 return None
             val = chList[0]
-#             if val.supportsRead():
-#                 bytes = bytearray(val.read())
-#                 _LOGGER.debug("Got value [%s]", " ".join("0x{:X}".format(x) for x in bytes) )
-#             else:
-#                 _LOGGER.debug("Reading not supported")
             return val
         except btle.BTLEException as ex:
             _LOGGER.error("Got exception from bluepy while making a request: %s", ex)
             raise ex
 
-
+    def waitForNotifications(self):
+        self._conn.waitForNotifications(1)
+    
+    
+    

@@ -27,7 +27,7 @@ class DPGCommand(Enum):
 #     GET_OEM_NAME(131),
 #     GET_SET_COMPANY_ID(132),
 #     GET_SET_COMPANY_NAME(133),
-    USER_ID = 134
+    USER_ID = 134               ## 0x86
 #     GET_SET_REMINDER_TIME(135),
     REMINDER_SETTING = 136
     GET_SET_MEMORY_POSITION_1 = 137
@@ -103,3 +103,13 @@ class ControlCommand(Enum):
             return struct.pack('BB', self.value, 0x0)
     
         
+class DirectionalCommand():
+
+    def __init__(self, position):
+        self._position = position
+    
+    def wrap_command(self):
+        return struct.pack('BB', 0x0, self._position)
+    
+    
+    
