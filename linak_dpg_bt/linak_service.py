@@ -47,24 +47,11 @@ class CharacteristicEnumMeta(EnumMeta):
                 return found
         return EnumMeta.__call__(cls, value, *args, **kw)
 
-    def findByUUID(cls, uuid):
-        strval = str(uuid).upper()
-        for item in Characteristic:
-            if item.uuid() == strval:
-                return item
-        return None
-    
-    def findByHandle(cls, handle):
-        for item in Characteristic:
-            if item.handle() == handle:
-                return item
-        return None
+
         
 
 @unique
-class Characteristic(Enum, metaclass=CharacteristicEnumMeta):
-    ## works for Python 2
-    __metaclass__ = CharacteristicEnumMeta
+class Characteristic(Enum):
     
     ## contains two accessors: 'name' and 'value'
     
@@ -111,6 +98,33 @@ class Characteristic(Enum, metaclass=CharacteristicEnumMeta):
     def __str__(self):
         return "%s.%s[%s, %s]" % (self.__class__.__name__, self.name, self.uuid(), hex(self.handle()) )
 
+
+    @classmethod
+    def find(cls, value):
+        if isinstance(value, str):
+            found = cls.findByUUID(value)
+            if found != None:
+                return found
+        if isinstance(value, int):
+            found = cls.findByHandle(value)
+            if found != None:
+                return found
+        return None
+        
+    @classmethod
+    def findByUUID(cls, uuid):
+        strval = str(uuid).upper()
+        for item in Characteristic:
+            if item.uuid() == strval:
+                return item
+        return None
+    
+    @classmethod
+    def findByHandle(cls, handle):
+        for item in Characteristic:
+            if item.handle() == handle:
+                return item
+        return None
 
     @classmethod
     def printCharacteristic(cls, characteristic):

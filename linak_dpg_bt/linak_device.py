@@ -4,6 +4,7 @@
 
 import logging
 from time import sleep
+from threading import Thread
 
 import linak_dpg_bt
 import linak_dpg_bt.linak_service as linak_service
@@ -28,6 +29,17 @@ class WrongFavoriteNumber(Exception):
     pass
 
 
+class NotificationHandler(Thread):
+    def __init__(self, desk):
+        Thread.__init__(self)
+        self.desk = desk
+        self.daemon = True
+        
+    def run(self):
+        while True:
+            self.desk.processNotifications()
+
+
 class LinakDesk:
     def __init__(self, bdaddr):
         self._bdaddr = bdaddr
@@ -39,6 +51,9 @@ class LinakDesk:
         self._fav_position_1 = None
         self._fav_position_2 = None
         self._height_speed = None
+        self._mask = None
+        self._posChangeCallback = None
+        self._notificationHandler = NotificationHandler(self)
 
     @property
     def name(self):
@@ -82,15 +97,10 @@ class LinakDesk:
         with self._conn as conn:
             """ We need to query for name before doing anything, without it device doesnt respond """
 
-            self._name = conn.read_characteristic_by_enum(linak_service.Characteristic.DEVICE_NAME)
-
-#             conn.subscribe_to_notification(constants.DPG_COMMAND_NOTIFY_HANDLE, 
-#                                            constants.DPG_COMMAND_HANDLE, self._handle_dpg_notification)
+            self._name = conn.read_characteristic_by_enum(linak_service.Characteristic.DEVICE_NAME).decode("utf-8")
 
             conn.subscribe_to_notification_enum(linak_service.Characteristic.DPG, self._handle_dpg_notification)
 
-            # conn.dpg_command(constants.PROP_USER_ID)
-            # conn.dpg_command(constants.PROP_GET_CAPABILITIES)
             conn.dpg_command(constants.PROP_DESK_OFFSET)
             conn.dpg_command(constants.PROP_MEMORY_POSITION_1)
             conn.dpg_command(constants.PROP_MEMORY_POSITION_2)
@@ -150,54 +160,57 @@ class LinakDesk:
 #         ### convert string to byte array, required for Python2
 #         data = bytearray(data)
         
+        currentCommand = self._conn.handleCurrentCommand()
+        #if currentCommand == None:
+        
         if DPGCommand.is_valid_response(data) == False:
-            _LOGGER.debug("Received invalid response for command %s: %s", self._conn.currentCommand, " ".join("0x{:X}".format(x) for x in data))
+            _LOGGER.debug("Received invalid response for command %s: %s", currentCommand, " ".join("0x{:X}".format(x) for x in data))
             return 
 
-        _LOGGER.debug("Received response for command %s: %s", self._conn.currentCommand, " ".join("0x{:X}".format(x) for x in data) )
+        _LOGGER.debug("Received response for command %s: %s", currentCommand, " ".join("0x{:X}".format(x) for x in data) )
 
         ## old way
-        if self._conn.currentCommand == constants.PROP_GET_CAPABILITIES:
+        if currentCommand == constants.PROP_GET_CAPABILITIES:
             self._capabilities = datatype.Capabilities( data )
             _LOGGER.debug( "Caps: %s", self._capabilities )
-        elif self._conn.currentCommand == constants.PROP_DESK_OFFSET:
+        elif currentCommand == constants.PROP_DESK_OFFSET:
             self._desk_offset = datatype.DeskPosition.create(data)
             _LOGGER.debug( "Desk offset: %s", self._desk_offset )
-        elif self._conn.currentCommand == constants.PROP_MEMORY_POSITION_1:
+        elif currentCommand == constants.PROP_MEMORY_POSITION_1:
             self._fav_position_1 = datatype.FavoritePosition(data)
             _LOGGER.debug( "Favorite 1: %s", self._fav_position_1 )
-        elif self._conn.currentCommand == constants.PROP_MEMORY_POSITION_2:
+        elif currentCommand == constants.PROP_MEMORY_POSITION_2:
             self._fav_position_2 = datatype.FavoritePosition(data)
             _LOGGER.debug( "Favorite 2: %s", self._fav_position_2 )
 
         ## new way
-        elif self._conn.currentCommand == DPGCommand.PRODUCT_INFO:
+        elif currentCommand == DPGCommand.PRODUCT_INFO:
             info = datatype.ProductInfo( data )
             _LOGGER.debug("Product info: %s", info)
-        elif self._conn.currentCommand == DPGCommand.GET_SETUP:
+        elif currentCommand == DPGCommand.GET_SETUP:
             pass
-        elif self._conn.currentCommand == DPGCommand.USER_ID:
+        elif currentCommand == DPGCommand.USER_ID:
             uId = datatype.UserId( data )
             _LOGGER.debug( "User id: %s", uId )
-        elif self._conn.currentCommand == DPGCommand.GET_CAPABILITIES:
+        elif currentCommand == DPGCommand.GET_CAPABILITIES:
             self._capabilities = datatype.Capabilities( data )
             _LOGGER.debug( "Caps: %s", self._capabilities )
-        elif self._conn.currentCommand == DPGCommand.REMINDER_SETTING:
+        elif currentCommand == DPGCommand.REMINDER_SETTING:
             reminder = datatype.ReminderSetting( data )
             _LOGGER.debug( "Reminder: %s", reminder )
-        elif self._conn.currentCommand == DPGCommand.DESK_OFFSET:
+        elif currentCommand == DPGCommand.DESK_OFFSET:
             self._desk_offset = datatype.DeskPosition.create(data)
             _LOGGER.debug( "Desk offset: %s", self._desk_offset )
-        elif self._conn.currentCommand == DPGCommand.GET_SET_MEMORY_POSITION_1:
+        elif currentCommand == DPGCommand.GET_SET_MEMORY_POSITION_1:
             self._fav_position_1 = datatype.FavoritePosition(data)
             _LOGGER.debug( "Favorite 1: %s", self._fav_position_1 )
-        elif self._conn.currentCommand == DPGCommand.GET_SET_MEMORY_POSITION_2:
+        elif currentCommand == DPGCommand.GET_SET_MEMORY_POSITION_2:
             self._fav_position_2 = datatype.FavoritePosition(data)
             _LOGGER.debug( "Favorite 2: %s", self._fav_position_2 )
-        elif self._conn.currentCommand == DPGCommand.GET_SET_MEMORY_POSITION_3:
+        elif currentCommand == DPGCommand.GET_SET_MEMORY_POSITION_3:
             self._fav_position_3 = datatype.FavoritePosition(data)
             _LOGGER.debug( "Favorite 3: %s", self._fav_position_3 )
-        elif self._conn.currentCommand == DPGCommand.GET_SET_MEMORY_POSITION_4:
+        elif currentCommand == DPGCommand.GET_SET_MEMORY_POSITION_4:
             self._fav_position_4 = datatype.FavoritePosition(data)
             _LOGGER.debug( "Favorite 4: %s", self._fav_position_4 )
         else:
@@ -228,102 +241,69 @@ class LinakDesk:
             ## read GenericAccess.DEVICE_NAME
             ## setNotificationEnabled Services.DPG, DPG.DPG
             ## queueDPGCommand DeskControlCommand.USER_ID
+    #             readReference(ReferenceOutput.ONE);
+    #             queueDPGCommand(DPGCommand.readCommand(DeskControlCommand.GET_CAPABILITIES));
+    #             queueDPGCommand(DPGCommand.readCommand(DeskControlCommand.REMINDER_SETTING));
+    #             queueDPGCommand(DPGCommand.readCommand(DeskControlCommand.DESK_OFFSET));
             ## setNotificationEnabled Services.CONTROL, Control.ERROR
             ## read ReferenceOutput.MASK
             ## setNotificationEnabled Services.REFERENCE_OUTPUT all
-            
             ## queueDPGCommand(DPGCommand.readCommand(DeskControlCommand.GET_SETUP));
             
-            
-            self._name = conn.read_characteristic_by_enum(linak_service.Characteristic.DEVICE_NAME)
+            deviceName = conn.read_characteristic_by_enum(linak_service.Characteristic.DEVICE_NAME)
+            self._name = deviceName.decode("utf-8")
+            _LOGGER.debug("Received name: %s", self._name)
 
             conn.subscribe_to_notification_enum(linak_service.Characteristic.DPG, self._handle_dpg_notification)
             conn.subscribe_to_notification_enum(linak_service.Characteristic.ERROR, self._handle_error_notification)
-#             
-#             conn.subscribe_to_notification_enum(linak_service.Characteristic.HEIGHT_SPEED, self._handle_reference_notification)
-#             conn.subscribe_to_notification_enum(linak_service.Characteristic.TWO, self._handle_reference_notification)
-#             conn.subscribe_to_notification_enum(linak_service.Characteristic.THREE, self._handle_reference_notification)
-#             conn.subscribe_to_notification_enum(linak_service.Characteristic.FOUR, self._handle_reference_notification)
-#             conn.subscribe_to_notification_enum(linak_service.Characteristic.FIVE, self._handle_reference_notification)
-#             conn.subscribe_to_notification_enum(linak_service.Characteristic.SIX, self._handle_reference_notification)
-#             conn.subscribe_to_notification_enum(linak_service.Characteristic.SEVEN, self._handle_reference_notification)
-#             conn.subscribe_to_notification_enum(linak_service.Characteristic.EIGHT, self._handle_reference_notification)
+            
+            conn.subscribe_to_notification_enum(linak_service.Characteristic.HEIGHT_SPEED, self._handle_reference_notification)
+            conn.subscribe_to_notification_enum(linak_service.Characteristic.TWO, self._handle_reference_notification)
+            conn.subscribe_to_notification_enum(linak_service.Characteristic.THREE, self._handle_reference_notification)
+            conn.subscribe_to_notification_enum(linak_service.Characteristic.FOUR, self._handle_reference_notification)
+            conn.subscribe_to_notification_enum(linak_service.Characteristic.FIVE, self._handle_reference_notification)
+            conn.subscribe_to_notification_enum(linak_service.Characteristic.SIX, self._handle_reference_notification)
+            conn.subscribe_to_notification_enum(linak_service.Characteristic.SEVEN, self._handle_reference_notification)
+            conn.subscribe_to_notification_enum(linak_service.Characteristic.EIGHT, self._handle_reference_notification)
+            
+            maskData = conn.read_characteristic_by_enum(linak_service.Characteristic.MASK)
+            self._mask = datatype.Mask( maskData )
+            _LOGGER.debug("Received mask: %s", self._mask)
 
             conn.send_dpg_command( DPGCommand.USER_ID )
-#             conn.send_dpg_command( DPGCommand.USER_ID )
-#             conn.send_dpg_command( DPGCommand.USER_ID )
-#             conn.send_dpg_command( DPGCommand.USER_ID )
+            conn.send_dpg_command( DPGCommand.PRODUCT_INFO )
+            conn.send_dpg_command( DPGCommand.GET_SETUP )
 
-#             # conn.dpg_command(constants.PROP_USER_ID)
-#             # conn.dpg_command(constants.PROP_GET_CAPABILITIES)
-#             conn.dpg_command(constants.PROP_DESK_OFFSET)
-#             conn.dpg_command(constants.PROP_MEMORY_POSITION_1)
-#             conn.dpg_command(constants.PROP_MEMORY_POSITION_2)
-#             
-#             conn.send_dpg_command(DPGCommand.PRODUCT_INFO)
-#             conn.send_dpg_command(DPGCommand.GET_SET_MEMORY_POSITION_3)
-#             conn.send_dpg_command(DPGCommand.GET_SET_MEMORY_POSITION_4)
-#             
-#             self._height_speed = HeightSpeed.from_bytes(conn.read_characteristic(constants.REFERENCE_OUTPUT_HANDLE))
-#             
+            heightData = conn.read_characteristic_by_enum(linak_service.Characteristic.HEIGHT_SPEED)
+            self._height_speed = datatype.HeightSpeed.from_bytes( heightData )
+            _LOGGER.debug("Received height: %s", self._height_speed)
+
+            conn.send_dpg_command( DPGCommand.GET_CAPABILITIES )
+            conn.send_dpg_command( DPGCommand.REMINDER_SETTING )
+            conn.send_dpg_command( DPGCommand.DESK_OFFSET )
+
+            conn.send_dpg_command( DPGCommand.GET_SET_MEMORY_POSITION_1 )
+            conn.send_dpg_command( DPGCommand.GET_SET_MEMORY_POSITION_2 )
+            conn.send_dpg_command( DPGCommand.GET_SET_MEMORY_POSITION_3 )
+            conn.send_dpg_command( DPGCommand.GET_SET_MEMORY_POSITION_4 )
+
 #             self.moveUp()
 #             
 #             self.moveTo(80)
-            
-            ## =============== old
-            
-#         _LOGGER.debug("Querying the device..")
-# 
-#         with self._conn as conn:
-#             """ We need to query for name before doing anything, without it device doesnt respond """
-#             self._name = conn.get_characteristic_by_enum(linak_service.Characteristic.DEVICE_NAME).read()
-#             
-#             conn.subscribe_to_notification_enum(linak_service.Characteristic.DPG, self._handle_dpg_notification)
-#             conn.subscribe_to_notification_enum(linak_service.Characteristic.ERROR, self._handle_error_notification)
-#             
-#             self.print_services()
-#             
-#             ## fetch data on demand
-# #             conn.send_dpg_command(DPGCommand.PRODUCT_INFO)
-# #             conn.send_dpg_command(DPGCommand.GET_SETUP)
-# #             conn.send_dpg_command(DPGCommand.USER_ID)
-# #             conn.send_dpg_command(DPGCommand.GET_CAPABILITIES)
-# #             conn.send_dpg_command(DPGCommand.REMINDER_SETTING)
-#             conn.send_dpg_command(DPGCommand.DESK_OFFSET)
-# #             
-#             conn.send_dpg_command(DPGCommand.GET_SET_MEMORY_POSITION_1)
-#             conn.send_dpg_command(DPGCommand.GET_SET_MEMORY_POSITION_2)
-# #             conn.send_dpg_command(DPGCommand.GET_SET_MEMORY_POSITION_3)
-# #             conn.send_dpg_command(DPGCommand.GET_SET_MEMORY_POSITION_4)
-#             
-# #             ## discovering services
-# #             peripheral = conn._conn
-# #             services = peripheral.getServices()
-# #             for s in services:
-# #                 self._handle_discovered_service(s)
-# 
-#             charData = conn.get_characteristic_by_enum(linak_service.Characteristic.HEIGHT_SPEED).read()
-#             if charData != None:
-#                 self._height_speed = datatype.HeightSpeed.from_bytes(charData)
-#             
+#
+        self._notificationHandler.start()
+
         _LOGGER.debug("Initialization done")
+     
+    def set_position_change_callback(self, callback):
+        self._posChangeCallback = callback
 
     def read_current_position(self):
-        _LOGGER.debug("Reading current position")
-        with self._conn as conn:
-            conn.send_dpg_command(DPGCommand.DESK_OFFSET)
-            charData = conn.read_characteristic_by_enum(linak_service.Characteristic.HEIGHT_SPEED)
-            if charData == None:
-                return None
-            heightSpeed = datatype.HeightSpeed.from_bytes(charData)
-            currPos = self._with_desk_offset(heightSpeed.height)
-            return currPos.cm
-        return None
+        currPos = self.current_height_with_offset
+        return currPos.cm
      
     def read_favorite_number(self):
-        _LOGGER.debug("Reading favourities number")
         with self._conn as conn:
-            conn.send_dpg_command(DPGCommand.GET_CAPABILITIES)
             caps = self._wait_for_variable("_capabilities")
             if caps == None:
                 return None
@@ -338,12 +318,16 @@ class LinakDesk:
     def moveUp(self):
         ## custom: 71, 64 | 0
         ## standard: 71, 0
+        _LOGGER.debug("Sending moveUp")
         with self._conn as conn:
-            conn.send_control_command( ControlCommand.MOVE_1_UP )
+            for _ in range(0, 10):
+                conn.send_control_command( ControlCommand.MOVE_1_UP )
+                sleep(0.3)
      
     def moveDown(self):
         ## custom: 70, 64 | 0
         ## standard: 70, 0
+        _LOGGER.debug("Sending moveDown")
         with self._conn as conn:
             conn.send_control_command( ControlCommand.MOVE_1_DOWN )
      
@@ -351,46 +335,54 @@ class LinakDesk:
         ## custom: 255, 64 | 0
         ## standard: 255, 0
         with self._conn as conn:
-            value = struct.pack('BB', 255, 0)
-            conn.write_to_char( linak_service.Characteristic.CONTROL, value )
+            _LOGGER.debug("Sending stopMoving")
+            conn.send_control_command( ControlCommand.STOP_MOVING )
 
-# #     def _handle_discovered_service(self, service):
-# #         if service.uuid == linak_service.Service.GENERIC_ACCESS:
-# #             self._name = self._get_char_data_from_service(service, linak_service.GenericAccess.DEVICE_NAME)
-# #         elif service.uuid == linak_service.Service.REFERENCEOUTPUT:
-# #             charData = self._get_char_data_from_service(service, linak_service.Characteristic.HEIGHT_SPEED)
-# #             if charData != None:
-# #                 self._height_speed = datatype.HeightSpeed.from_bytes(charData)
-# #             charData = self._get_char_data_from_service(service, linak_service.Characteristic.MASK)
-# #             if charData != None:
-# #                 maskData = bytearray(charData)
-# #                 maskBit = maskData[0]
-# #                 if maskBit == 1:
-# #                     _LOGGER.debug("Connected to Desk" )
-# #                 elif maskBit == 64:
-# #                     _LOGGER.debug("Connected to LegRest" )
-# #                 elif maskBit == 128:
-# #                     _LOGGER.debug("Connected to BackRest" )
-# #                 elif maskBit == 0:
-# #                     _LOGGER.debug("Invalid actuator" )
-# #                 else:
-# #                     _LOGGER.debug("Unknown actuator" )
-# #         elif service.uuid == linak_service.Service.DPG:
-# #             dpgChar = self._get_char_from_service(service, linak_service.Characteristic.DPG)            
-# #             if dpgChar != None:
-# #                 self._conn.subscribe_to_char(dpgChar, self._handle_dpg_notification)
-# #                 self._conn.command(dpgChar, DPGCommand.PRODUCT_INFO)
-# # #                 self._conn.command(dpgChar, DPGCommand.USER_ID)
-# # #                 self._conn.command(dpgChar, DPGCommand.GET_CAPABILITIES)
-# # #                 self._conn.command(dpgChar, DPGCommand.REMINDER_SETTING)
-# #                 self._conn.command(dpgChar, DPGCommand.DESK_OFFSET)
-# # #                 self._conn.command(dpgChar, DPGCommand.GET_SETUP)
-# #                 ## invalid commands
-# #                 self._conn.command(dpgChar, DPGCommand.GET_SET_MEMORY_POSITION_1)
-# #                 self._conn.command(dpgChar, DPGCommand.GET_SET_MEMORY_POSITION_2)
-# # #                 self._conn.command(dpgChar, DPGCommand.GET_SET_MEMORY_POSITION_3)
-# # #                 self._conn.command(dpgChar, DPGCommand.GET_SET_MEMORY_POSITION_4)
- 
+
+#     def discover_services(self):
+#         ## discovering services
+#         peripheral = conn._conn
+#         services = peripheral.getServices()
+#         for s in services:
+#             self._handle_discovered_service(s)
+#
+#     def _handle_discovered_service(self, service):
+#         if service.uuid == linak_service.Service.GENERIC_ACCESS:
+#             self._name = self._get_char_data_from_service(service, linak_service.GenericAccess.DEVICE_NAME)
+#         elif service.uuid == linak_service.Service.REFERENCEOUTPUT:
+#             charData = self._get_char_data_from_service(service, linak_service.Characteristic.HEIGHT_SPEED)
+#             if charData != None:
+#                 self._height_speed = datatype.HeightSpeed.from_bytes(charData)
+#             charData = self._get_char_data_from_service(service, linak_service.Characteristic.MASK)
+#             if charData != None:
+#                 maskData = bytearray(charData)
+#                 maskBit = maskData[0]
+#                 if maskBit == 1:
+#                     _LOGGER.debug("Connected to Desk" )
+#                 elif maskBit == 64:
+#                     _LOGGER.debug("Connected to LegRest" )
+#                 elif maskBit == 128:
+#                     _LOGGER.debug("Connected to BackRest" )
+#                 elif maskBit == 0:
+#                     _LOGGER.debug("Invalid actuator" )
+#                 else:
+#                     _LOGGER.debug("Unknown actuator" )
+#         elif service.uuid == linak_service.Service.DPG:
+#             dpgChar = self._get_char_from_service(service, linak_service.Characteristic.DPG)            
+#             if dpgChar != None:
+#                 self._conn.subscribe_to_char(dpgChar, self._handle_dpg_notification)
+#                 self._conn.command(dpgChar, DPGCommand.PRODUCT_INFO)
+# #                 self._conn.command(dpgChar, DPGCommand.USER_ID)
+# #                 self._conn.command(dpgChar, DPGCommand.GET_CAPABILITIES)
+# #                 self._conn.command(dpgChar, DPGCommand.REMINDER_SETTING)
+#                 self._conn.command(dpgChar, DPGCommand.DESK_OFFSET)
+# #                 self._conn.command(dpgChar, DPGCommand.GET_SETUP)
+#                 ## invalid commands
+#                 self._conn.command(dpgChar, DPGCommand.GET_SET_MEMORY_POSITION_1)
+#                 self._conn.command(dpgChar, DPGCommand.GET_SET_MEMORY_POSITION_2)
+# #                 self._conn.command(dpgChar, DPGCommand.GET_SET_MEMORY_POSITION_3)
+# #                 self._conn.command(dpgChar, DPGCommand.GET_SET_MEMORY_POSITION_4)
+#
 #     def print_services(self):
 #         _LOGGER.debug("Discovering services")
 #         with self._conn as conn:
@@ -432,7 +424,15 @@ class LinakDesk:
  
         _LOGGER.debug("Received reference data: [%s]", " ".join("0x{:X}".format(x) for x in data) )
         
+        self._height_speed = datatype.HeightSpeed.from_bytes( data )
+        _LOGGER.debug("Received height: %s", self._height_speed)
+        
+        if self._posChangeCallback != None:
+            self._posChangeCallback()
+        
     def processNotifications(self):
         with self._conn as conn:
-            conn.waitForNotifications()
+            while True:
+                conn.processNotifications()
+                sleep(0.1)                      ## prevents starving other thread
         

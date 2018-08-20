@@ -9,6 +9,7 @@ import logging
 from enum import Enum, unique
 
 from .datatype.desk_position import DeskPosition
+import linak_dpg_bt.linak_service as linak_service
 
 
 _LOGGER = logging.getLogger(__name__)
@@ -44,7 +45,8 @@ class DPGCommand(Enum):
 #     READ_WRITE_REFERENCE_SPEED_8(223),
 #     GET_MASSAGE_PARAMETERS(244),
 #     GET_SET_MASSAGE_VALUES(245),
-#     GET_LOG_ENTRY(144);
+    GET_LOG_ENTRY = 144
+    
      
     @classmethod
     def is_valid_response(cls, data):
@@ -74,6 +76,23 @@ class DPGCommand(Enum):
     def wrap_command(self):
         return self.wrap_read_command(self.value)
     
+    def getReceiver(self):
+        return linak_service.Characteristic.DPG
+    
+    def isReadOperation(self):
+#         boolean r;
+#         int i = 1;
+#         if (this.bytes.length >= 3) {
+#             r = true;
+#         } else {
+#             r = false;
+#         }
+#         if (this.bytes[2] != (byte) 0) {
+#             i = 0;
+#         }
+#         return r & i;
+        return True
+    
 #     @property
 #     def raw_value(self):
 #         return codecs.encode(self._data, 'hex')
@@ -92,6 +111,8 @@ class ControlCommand(Enum):
     MOVE_1_DOWN = 70
     MOVE_1_UP = 71
     
+    STOP_MOVING = 255
+    
     
     def wrap_command(self):
         ## 0x7F is Byte.MAX_VALUE
@@ -101,6 +122,12 @@ class ControlCommand(Enum):
             return struct.pack('BB', self.value, 64 | functionBit)
         else:
             return struct.pack('BB', self.value, 0x0)
+        
+    def getReceiver(self):
+        return linak_service.Characteristic.CONTROL
+        
+    def isReadOperation(self):
+        return True
     
         
 class DirectionalCommand():
@@ -110,6 +137,12 @@ class DirectionalCommand():
     
     def wrap_command(self):
         return struct.pack('BB', 0x0, self._position)
+    
+    def getReceiver(self):
+        return linak_service.Characteristic.CTRL1
+    
+    def isReadOperation(self):
+        return True
     
     
     

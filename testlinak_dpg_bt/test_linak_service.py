@@ -38,20 +38,20 @@ class CharacteristicTest(unittest.TestCase):
         ## Called after testfunction was executed
         pass
        
-    def test_constructor_lower(self):
-        value = Characteristic( Characteristic.DPG.uuid().lower() )
+    def test_find_lower(self):
+        value = Characteristic.find( Characteristic.DPG.uuid().lower() )
         self.assertEqual( id(Characteristic.DPG), id(value) )
         self.assertEqual( Characteristic.DPG.uuid(), value.uuid() )
         self.assertEqual( Characteristic.DPG.handle(), value.handle() )
         
-    def test_constructor_upper(self):
-        value = Characteristic( Characteristic.DPG.uuid().upper() )
+    def test_find_upper(self):
+        value = Characteristic.find( Characteristic.DPG.uuid().upper() )
         self.assertEqual( id(Characteristic.DPG), id(value) )
         self.assertEqual( Characteristic.DPG.uuid(), value.uuid() )
         self.assertEqual( Characteristic.DPG.handle(), value.handle() )
         
-    def test_constructor_handle(self):
-        value = Characteristic( Characteristic.DPG.handle() )
+    def test_find_handle(self):
+        value = Characteristic.find( Characteristic.DPG.handle() )
         self.assertEqual( Characteristic.DPG.uuid(), value.uuid() )
         self.assertEqual( Characteristic.DPG.handle(), value.handle() )
 

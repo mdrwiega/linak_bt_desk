@@ -9,16 +9,49 @@ import logging
 import codecs
 
 import struct
-from bluepy import btle
+import threading
 
 from time import sleep
 
+from bluepy import btle
+
 from .command import DPGCommand
+from .command_queue import CommandQueue
 import linak_dpg_bt.linak_service as linak_service
 import linak_dpg_bt.constants as constants
 
 
 _LOGGER = logging.getLogger(__name__)
+
+
+
+##
+## Definition of function decorator
+##
+def synchronized_with_arg(lock_name = "_methods_lock"):
+      
+    def decorator(method):
+        def synced_method(self, *args, **kws):
+            lock = None
+            if hasattr(self, lock_name) == False:
+                lock = threading.RLock()
+                setattr(self, lock_name, lock)
+            else:
+                lock = getattr(self, lock_name)
+            with lock:
+                return method(self, *args, **kws)
+        return synced_method
+
+    return decorator
+    
+def synchronized(lock_name="_methods_lock"):
+    if callable(lock_name):
+        ### lock_name contains function to call
+        return synchronized_with_arg("_methods_lock")(lock_name)
+    else:
+        return synchronized_with_arg(lock_name)
+
+
 
 
 class BTLEConnection(btle.DefaultDelegate):
@@ -32,7 +65,9 @@ class BTLEConnection(btle.DefaultDelegate):
         self._mac = mac
         self._callbacks = {}
         self.currentCommand = None
+#         self.dpgQueue = CommandQueue(self)
 
+    @synchronized
     def __enter__(self):
         """
         Context manager __enter__ for connecting the device
@@ -43,18 +78,20 @@ class BTLEConnection(btle.DefaultDelegate):
         if self._conn != None:
             return self
         
-        self._conn = btle.Peripheral()
-        self._conn.withDelegate(self)
         _LOGGER.debug("Trying to connect to %s", self._mac)
-        try:
-            self._conn.connect(self._mac, addrType='random')
-        except btle.BTLEException as ex:
-            _LOGGER.debug("Unable to connect to the device %s, retrying: %s", self._mac, ex)
+        connected = False
+        for _ in range(0,2):
             try:
+                self._conn = btle.Peripheral()
+                self._conn.withDelegate(self)
                 self._conn.connect(self._mac, addrType='random')
-            except Exception as ex2:
-                _LOGGER.error("Second connection try to %s failed: %s", self._mac, ex2)
-                raise
+                connected = True
+            except btle.BTLEException as ex:
+                _LOGGER.debug("Unable to connect to the device %s, retrying: %s", self._mac, ex)
+                
+        if connected == False:
+            _LOGGER.error("Connection to %s failed", self._mac)
+            raise ConnectionRefusedError("Connection to %s failed" % self._mac)
 
         _LOGGER.debug("Connected to %s", self._mac)
         return self
@@ -65,8 +102,10 @@ class BTLEConnection(btle.DefaultDelegate):
         ## self.disconnect()
 
     def __del__(self):
+        #TODO: make disconnection on CTRL+C
         self.disconnect()
 
+    @synchronized
     def disconnect(self):
         if self._conn:
             self._conn.disconnect()
@@ -74,11 +113,11 @@ class BTLEConnection(btle.DefaultDelegate):
 
     def handleNotification(self, handle, data):
         """Handle Callback from a Bluetooth (GATT) request."""
-        _LOGGER.debug("Got notification from %s: %s", linak_service.Characteristic(handle), codecs.encode(data, 'hex'))
         if handle in self._callbacks:
+            _LOGGER.debug("Got notification from %s: %s", linak_service.Characteristic.find(handle), codecs.encode(data, 'hex'))
             self._callbacks[handle](handle, data)
         else:
-            _LOGGER.debug("Notification does not have callback")
+            _LOGGER.debug("Got notification without callback from %s: %s", linak_service.Characteristic.find(handle), codecs.encode(data, 'hex'))
 
     @property
     def mac(self):
@@ -89,6 +128,7 @@ class BTLEConnection(btle.DefaultDelegate):
         """Set the callback for a Notification handle. It will be called with the parameter data, which is binary."""
         self._callbacks[handle] = function
 
+    @synchronized
     def make_request(self, handle, value, timeout=constants.DEFAULT_TIMEOUT, with_response=True):
         """Write a GATT Command without callback - not utf-8."""
         try:
@@ -101,6 +141,7 @@ class BTLEConnection(btle.DefaultDelegate):
             _LOGGER.error("Got exception from bluepy while making a request: %s", ex)
             raise ex
 
+    @synchronized
     def read_characteristic(self, handle):
         """Read a GATT Characteristic."""
         try:
@@ -129,29 +170,62 @@ class BTLEConnection(btle.DefaultDelegate):
     ## =======================================================
     
     
+    def handleCurrentCommand(self):
+        ##return self.dpgQueue.markCommandHandled()
+        oldCommand = self.currentCommand
+        self.currentCommand = None
+        return oldCommand
+        
+    @synchronized
     def send_dpg_command(self, dpgCommand):
-        self.send_command(linak_service.Characteristic.DPG, dpgCommand)
+        self._send_command_repeated(linak_service.Characteristic.DPG, dpgCommand)
     
+    @synchronized
     def send_control_command(self, controlCommand):
-        self.send_command(linak_service.Characteristic.CONTROL, controlCommand)
+        self._send_command_single(linak_service.Characteristic.CONTROL, controlCommand, False)
     
+    @synchronized
     def send_directional_command(self, directionalCommand):
-        self.send_command(linak_service.Characteristic.CTRL1, directionalCommand)
+        self._send_command_single(linak_service.Characteristic.CTRL1, directionalCommand)
     
-    def send_command(self, characteristicEnum, commandObj, with_response = True):
+    def _send_command_repeated(self, characteristicEnum, commandObj, with_response = True):
         self.currentCommand = commandObj
-        value = commandObj.wrap_command()
-        _LOGGER.debug("Sending command %s[%s] to %s with_response=%s", commandObj, codecs.encode(value, 'hex'), characteristicEnum, with_response)
-        self._conn.writeCharacteristic( characteristicEnum.handle(), value, withResponse=with_response)
-#         characteristicObj = self.get_characteristic_by_enum(characteristicEnum)
-#         characteristicObj.write(value, with_response)
-        timeout = max(constants.DEFAULT_TIMEOUT, 1)
         ##_LOGGER.debug("Waiting for notifications for %s", timeout)
-        self._conn.waitForNotifications(timeout)
+        for rep in range(0, 8):
+            self._send_command_single(characteristicEnum, commandObj, with_response)
+            ##sleep(0.2)
+            if self.currentCommand == None:
+                ## command handled -- do not resent again
+                break;
+            else:
+                _LOGGER.debug("Did not receive response: %s", rep)
         ### here notification callback is already handled
         ##_LOGGER.debug("Command handled")
-        self.currentCommand = None
-        sleep(0.2)
+                
+    ### if with_response = True then exception will be raised in case of problems
+    def _send_command_single(self, characteristicEnum, commandObj, with_response = True):
+        self.currentCommand = commandObj
+        value = commandObj.wrap_command()
+        _LOGGER.debug("Sending %s[%s] to %s with_response=%s", commandObj, codecs.encode(value, 'hex'), characteristicEnum, with_response)
+        self._write_to_characteristic_raw( characteristicEnum.handle(), value, withResponse=with_response)
+
+    @synchronized
+    def write_to_characteristic_by_enum(self, characteristicEnum, value, with_response = True):
+        _LOGGER.debug("Writing value %s to %s with with_response=%s", codecs.encode(value, 'hex'), characteristicEnum, with_response)
+        self._write_to_characteristic_raw( characteristicEnum.handle(), value, withResponse=with_response )
+        if with_response == True:
+            timeout = max(constants.DEFAULT_TIMEOUT, 1)
+            _LOGGER.debug("Wait for notifications for %s", timeout)
+            self._conn.waitForNotifications(timeout)
+            _LOGGER.debug("Waiting done")
+            
+    def _write_to_characteristic_raw(self,handle, value, with_response = True):
+        self._conn.writeCharacteristic( handle, value, withResponse=with_response)
+        if with_response == True:
+            timeout = max(constants.DEFAULT_TIMEOUT, 1)
+            _LOGGER.debug("Wait for notifications for %s", timeout)
+            self._conn.waitForNotifications(timeout)
+            _LOGGER.debug("Waiting done")
     
     def subscribe_to_notification_enum(self, characteristicEnum, callback):
         _LOGGER.debug("Subscribing to %s", characteristicEnum)
@@ -160,6 +234,7 @@ class BTLEConnection(btle.DefaultDelegate):
         notification_resp_handle = characteristicEnum.handle()
         self.set_callback(notification_resp_handle, callback)
 
+    @synchronized
     def read_characteristic_by_enum(self, characteristicEnum):
         """Read a GATT Characteristic in sync mode."""
         try:
@@ -174,16 +249,7 @@ class BTLEConnection(btle.DefaultDelegate):
             _LOGGER.error("Got exception from bluepy while making a request: %s", ex)
             raise ex
 
-    def write_to_characteristic_by_enum(self, characteristicEnum, value, with_response = True):
-        ##_LOGGER.debug("Writing value %s to %s with with_response=%s", codecs.encode(value, 'hex'), characteristicEnum, with_response)
-        self._conn.writeCharacteristic( characteristicEnum.handle(), value, withResponse=with_response)
-#         charObj = self.get_characteristic_by_enum( characteristicEnum )
-#         charObj.write(value, with_response)
-        if with_response == True:
-            timeout = max(constants.DEFAULT_TIMEOUT, 1)
-            _LOGGER.debug("Waiting for notifications for %s", timeout)
-            self._conn.waitForNotifications(timeout)
-
+    @synchronized
     def get_characteristic_by_enum(self, characteristicEnum):
         """Read a GATT Characteristic."""
         try:
@@ -200,8 +266,9 @@ class BTLEConnection(btle.DefaultDelegate):
             _LOGGER.error("Got exception from bluepy while making a request: %s", ex)
             raise ex
 
-    def waitForNotifications(self):
-        self._conn.waitForNotifications(1)
-    
-    
-    
+    @synchronized
+    def processNotifications(self):
+        ##_LOGGER.error("Starting processing")
+        self._conn.waitForNotifications(0.5)
+        ##_LOGGER.error("Leaving processing")
+
