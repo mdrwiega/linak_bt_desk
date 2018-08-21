@@ -46,6 +46,7 @@ class LinakDesk:
         self._conn = BTLEConnection(bdaddr)
 
         self._name = None
+        self._userType = None
         self._capabilities = None
         self._desk_offset = None
         self._fav_position_1 = None
@@ -58,6 +59,10 @@ class LinakDesk:
     @property
     def name(self):
         return self._wait_for_variable('_name')
+    
+    @property
+    def userType(self):
+        return self._wait_for_variable('_userType')
 
     @property
     def desk_offset(self):
@@ -192,6 +197,7 @@ class LinakDesk:
         elif currentCommand == DPGCommand.USER_ID:
             uId = datatype.UserId( data )
             _LOGGER.debug( "User id: %s", uId )
+            self._userType = uId.type
         elif currentCommand == DPGCommand.GET_CAPABILITIES:
             self._capabilities = datatype.Capabilities( data )
             _LOGGER.debug( "Caps: %s", self._capabilities )
@@ -233,67 +239,71 @@ class LinakDesk:
     
     def initialize(self):
         _LOGGER.debug("Initializing the device")
-
-        with self._conn as conn:
-            """ We need to query for name before doing anything, without it device doesnt respond """
+        try:
+            with self._conn as conn:
+                """ We need to query for name before doing anything, without it device doesnt respond """
+                
+                ### on start:
+                ## read GenericAccess.DEVICE_NAME
+                ## setNotificationEnabled Services.DPG, DPG.DPG
+                ## queueDPGCommand DeskControlCommand.USER_ID
+        #             readReference(ReferenceOutput.ONE);
+        #             queueDPGCommand(DPGCommand.readCommand(DeskControlCommand.GET_CAPABILITIES));
+        #             queueDPGCommand(DPGCommand.readCommand(DeskControlCommand.REMINDER_SETTING));
+        #             queueDPGCommand(DPGCommand.readCommand(DeskControlCommand.DESK_OFFSET));
+                ## setNotificationEnabled Services.CONTROL, Control.ERROR
+                ## read ReferenceOutput.MASK
+                ## setNotificationEnabled Services.REFERENCE_OUTPUT all
+                ## queueDPGCommand(DPGCommand.readCommand(DeskControlCommand.GET_SETUP));
+                
+                deviceName = conn.read_characteristic_by_enum(linak_service.Characteristic.DEVICE_NAME)
+                self._name = deviceName.decode("utf-8")
+                _LOGGER.debug("Received name: %s", self._name)
+    
+                conn.subscribe_to_notification_enum(linak_service.Characteristic.DPG, self._handle_dpg_notification)
+                conn.subscribe_to_notification_enum(linak_service.Characteristic.ERROR, self._handle_error_notification)
+                
+                maskData = conn.read_characteristic_by_enum(linak_service.Characteristic.MASK)
+                self._mask = datatype.Mask( maskData )
+                _LOGGER.debug("Received mask: %s", self._mask)
+                
+                conn.subscribe_to_notification_enum(linak_service.Characteristic.HEIGHT_SPEED, self._handle_reference_notification)
+                conn.subscribe_to_notification_enum(linak_service.Characteristic.TWO, self._handle_reference_notification)
+                conn.subscribe_to_notification_enum(linak_service.Characteristic.THREE, self._handle_reference_notification)
+                conn.subscribe_to_notification_enum(linak_service.Characteristic.FOUR, self._handle_reference_notification)
+                conn.subscribe_to_notification_enum(linak_service.Characteristic.FIVE, self._handle_reference_notification)
+                conn.subscribe_to_notification_enum(linak_service.Characteristic.SIX, self._handle_reference_notification)
+                conn.subscribe_to_notification_enum(linak_service.Characteristic.SEVEN, self._handle_reference_notification)
+                conn.subscribe_to_notification_enum(linak_service.Characteristic.EIGHT, self._handle_reference_notification)
+    
+                conn.send_dpg_command( DPGCommand.USER_ID )
+                conn.send_dpg_command( DPGCommand.PRODUCT_INFO )
+                conn.send_dpg_command( DPGCommand.GET_SETUP )
+    
+                heightData = conn.read_characteristic_by_enum(linak_service.Characteristic.HEIGHT_SPEED)
+                self._height_speed = datatype.HeightSpeed.from_bytes( heightData )
+                _LOGGER.debug("Received height: %s", self._height_speed)
+    
+                conn.send_dpg_command( DPGCommand.GET_CAPABILITIES )
+                conn.send_dpg_command( DPGCommand.REMINDER_SETTING )
+                conn.send_dpg_command( DPGCommand.DESK_OFFSET )
+    
+                conn.send_dpg_command( DPGCommand.GET_SET_MEMORY_POSITION_1 )
+                conn.send_dpg_command( DPGCommand.GET_SET_MEMORY_POSITION_2 )
+                conn.send_dpg_command( DPGCommand.GET_SET_MEMORY_POSITION_3 )
+                conn.send_dpg_command( DPGCommand.GET_SET_MEMORY_POSITION_4 )
+    
+    #             self.moveUp()
+    #             
+    #             self.moveTo(80)
+    #
+            self._notificationHandler.start()
+    
+            _LOGGER.debug("Initialization done")
             
-            ### on start:
-            ## read GenericAccess.DEVICE_NAME
-            ## setNotificationEnabled Services.DPG, DPG.DPG
-            ## queueDPGCommand DeskControlCommand.USER_ID
-    #             readReference(ReferenceOutput.ONE);
-    #             queueDPGCommand(DPGCommand.readCommand(DeskControlCommand.GET_CAPABILITIES));
-    #             queueDPGCommand(DPGCommand.readCommand(DeskControlCommand.REMINDER_SETTING));
-    #             queueDPGCommand(DPGCommand.readCommand(DeskControlCommand.DESK_OFFSET));
-            ## setNotificationEnabled Services.CONTROL, Control.ERROR
-            ## read ReferenceOutput.MASK
-            ## setNotificationEnabled Services.REFERENCE_OUTPUT all
-            ## queueDPGCommand(DPGCommand.readCommand(DeskControlCommand.GET_SETUP));
-            
-            deviceName = conn.read_characteristic_by_enum(linak_service.Characteristic.DEVICE_NAME)
-            self._name = deviceName.decode("utf-8")
-            _LOGGER.debug("Received name: %s", self._name)
-
-            conn.subscribe_to_notification_enum(linak_service.Characteristic.DPG, self._handle_dpg_notification)
-            conn.subscribe_to_notification_enum(linak_service.Characteristic.ERROR, self._handle_error_notification)
-            
-            conn.subscribe_to_notification_enum(linak_service.Characteristic.HEIGHT_SPEED, self._handle_reference_notification)
-            conn.subscribe_to_notification_enum(linak_service.Characteristic.TWO, self._handle_reference_notification)
-            conn.subscribe_to_notification_enum(linak_service.Characteristic.THREE, self._handle_reference_notification)
-            conn.subscribe_to_notification_enum(linak_service.Characteristic.FOUR, self._handle_reference_notification)
-            conn.subscribe_to_notification_enum(linak_service.Characteristic.FIVE, self._handle_reference_notification)
-            conn.subscribe_to_notification_enum(linak_service.Characteristic.SIX, self._handle_reference_notification)
-            conn.subscribe_to_notification_enum(linak_service.Characteristic.SEVEN, self._handle_reference_notification)
-            conn.subscribe_to_notification_enum(linak_service.Characteristic.EIGHT, self._handle_reference_notification)
-            
-            maskData = conn.read_characteristic_by_enum(linak_service.Characteristic.MASK)
-            self._mask = datatype.Mask( maskData )
-            _LOGGER.debug("Received mask: %s", self._mask)
-
-            conn.send_dpg_command( DPGCommand.USER_ID )
-            conn.send_dpg_command( DPGCommand.PRODUCT_INFO )
-            conn.send_dpg_command( DPGCommand.GET_SETUP )
-
-            heightData = conn.read_characteristic_by_enum(linak_service.Characteristic.HEIGHT_SPEED)
-            self._height_speed = datatype.HeightSpeed.from_bytes( heightData )
-            _LOGGER.debug("Received height: %s", self._height_speed)
-
-            conn.send_dpg_command( DPGCommand.GET_CAPABILITIES )
-            conn.send_dpg_command( DPGCommand.REMINDER_SETTING )
-            conn.send_dpg_command( DPGCommand.DESK_OFFSET )
-
-            conn.send_dpg_command( DPGCommand.GET_SET_MEMORY_POSITION_1 )
-            conn.send_dpg_command( DPGCommand.GET_SET_MEMORY_POSITION_2 )
-            conn.send_dpg_command( DPGCommand.GET_SET_MEMORY_POSITION_3 )
-            conn.send_dpg_command( DPGCommand.GET_SET_MEMORY_POSITION_4 )
-
-#             self.moveUp()
-#             
-#             self.moveTo(80)
-#
-        self._notificationHandler.start()
-
-        _LOGGER.debug("Initialization done")
+        except BaseException as e:
+            _LOGGER.exception( "e" )
+            raise e
      
     def set_position_change_callback(self, callback):
         self._posChangeCallback = callback

@@ -221,12 +221,12 @@ class BTLEConnection(btle.DefaultDelegate):
         self.currentCommand = commandObj
         value = commandObj.wrap_command()
         _LOGGER.debug("Sending %s[%s] to %s with_response=%s", commandObj, codecs.encode(value, 'hex'), characteristicEnum, with_response)
-        self._write_to_characteristic_raw( characteristicEnum.handle(), value, withResponse=with_response)
+        self._write_to_characteristic_raw( characteristicEnum.handle(), value, with_response=with_response)
 
     @synchronized
     def write_to_characteristic_by_enum(self, characteristicEnum, value, with_response = True):
         _LOGGER.debug("Writing value %s to %s with with_response=%s", codecs.encode(value, 'hex'), characteristicEnum, with_response)
-        self._write_to_characteristic_raw( characteristicEnum.handle(), value, withResponse=with_response )
+        self._write_to_characteristic_raw( characteristicEnum.handle(), value, with_response=with_response )
         if with_response == True:
             timeout = max(constants.DEFAULT_TIMEOUT, 1)
             _LOGGER.debug("Wait for notifications for %s", timeout)
