@@ -68,19 +68,6 @@ class BTLEConnection(btle.DefaultDelegate):
 #         self.dpgQueue = CommandQueue(self)
 
 
-#         devAddr = "c6:e4:0a:57:2f:e0"
-#         addrType = "random"
-#         print("Connecting to: {}, address type: {}".format(devAddr, addrType))
-# #         conn = btle.Peripheral(devAddr, addrType)
-#         conn = btle.Peripheral()
-#         try:
-#             conn.connect(devAddr, addrType)
-#             for svc in conn.services:
-#                 print(str(svc), ":")
-#         finally:
-#             conn.disconnect()
-
-
     @synchronized
     def __enter__(self):
         """

@@ -242,7 +242,7 @@ class LinakDesk:
         try:
             with self._conn as conn:
                 """ We need to query for name before doing anything, without it device doesnt respond """
-                
+                 
                 ### on start:
                 ## read GenericAccess.DEVICE_NAME
                 ## setNotificationEnabled Services.DPG, DPG.DPG
@@ -255,18 +255,22 @@ class LinakDesk:
                 ## read ReferenceOutput.MASK
                 ## setNotificationEnabled Services.REFERENCE_OUTPUT all
                 ## queueDPGCommand(DPGCommand.readCommand(DeskControlCommand.GET_SETUP));
-                
+
+                peripheral = conn._conn
+                peripheral.getServices()
+                peripheral.getCharacteristics()
+                 
                 deviceName = conn.read_characteristic_by_enum(linak_service.Characteristic.DEVICE_NAME)
                 self._name = deviceName.decode("utf-8")
                 _LOGGER.debug("Received name: %s", self._name)
-    
+     
                 conn.subscribe_to_notification_enum(linak_service.Characteristic.DPG, self._handle_dpg_notification)
                 conn.subscribe_to_notification_enum(linak_service.Characteristic.ERROR, self._handle_error_notification)
-                
+                 
                 maskData = conn.read_characteristic_by_enum(linak_service.Characteristic.MASK)
                 self._mask = datatype.Mask( maskData )
                 _LOGGER.debug("Received mask: %s", self._mask)
-                
+                 
                 conn.subscribe_to_notification_enum(linak_service.Characteristic.HEIGHT_SPEED, self._handle_reference_notification)
                 conn.subscribe_to_notification_enum(linak_service.Characteristic.TWO, self._handle_reference_notification)
                 conn.subscribe_to_notification_enum(linak_service.Characteristic.THREE, self._handle_reference_notification)
@@ -275,28 +279,26 @@ class LinakDesk:
                 conn.subscribe_to_notification_enum(linak_service.Characteristic.SIX, self._handle_reference_notification)
                 conn.subscribe_to_notification_enum(linak_service.Characteristic.SEVEN, self._handle_reference_notification)
                 conn.subscribe_to_notification_enum(linak_service.Characteristic.EIGHT, self._handle_reference_notification)
-    
+     
                 conn.send_dpg_command( DPGCommand.USER_ID )
                 conn.send_dpg_command( DPGCommand.PRODUCT_INFO )
                 conn.send_dpg_command( DPGCommand.GET_SETUP )
-    
+     
                 heightData = conn.read_characteristic_by_enum(linak_service.Characteristic.HEIGHT_SPEED)
                 self._height_speed = datatype.HeightSpeed.from_bytes( heightData )
                 _LOGGER.debug("Received height: %s", self._height_speed)
-    
+     
                 conn.send_dpg_command( DPGCommand.GET_CAPABILITIES )
                 conn.send_dpg_command( DPGCommand.REMINDER_SETTING )
                 conn.send_dpg_command( DPGCommand.DESK_OFFSET )
-    
+     
                 conn.send_dpg_command( DPGCommand.GET_SET_MEMORY_POSITION_1 )
                 conn.send_dpg_command( DPGCommand.GET_SET_MEMORY_POSITION_2 )
                 conn.send_dpg_command( DPGCommand.GET_SET_MEMORY_POSITION_3 )
                 conn.send_dpg_command( DPGCommand.GET_SET_MEMORY_POSITION_4 )
     
-    #             self.moveUp()
-    #             
-    #             self.moveTo(80)
-    #
+#             self.discover_services()
+    
             self._notificationHandler.start()
     
             _LOGGER.debug("Initialization done")
@@ -348,74 +350,78 @@ class LinakDesk:
             _LOGGER.debug("Sending stopMoving")
             conn.send_control_command( ControlCommand.STOP_MOVING )
 
+    def discover_services(self):
+        ## discovering services
+        with self._conn as conn:
+            peripheral = conn._conn
+            services = peripheral.getServices()
+            for s in services:
+                self._handle_discovered_service(s)
 
-#     def discover_services(self):
-#         ## discovering services
-#         peripheral = conn._conn
-#         services = peripheral.getServices()
-#         for s in services:
-#             self._handle_discovered_service(s)
-#
-#     def _handle_discovered_service(self, service):
-#         if service.uuid == linak_service.Service.GENERIC_ACCESS:
-#             self._name = self._get_char_data_from_service(service, linak_service.GenericAccess.DEVICE_NAME)
-#         elif service.uuid == linak_service.Service.REFERENCEOUTPUT:
-#             charData = self._get_char_data_from_service(service, linak_service.Characteristic.HEIGHT_SPEED)
-#             if charData != None:
-#                 self._height_speed = datatype.HeightSpeed.from_bytes(charData)
-#             charData = self._get_char_data_from_service(service, linak_service.Characteristic.MASK)
-#             if charData != None:
-#                 maskData = bytearray(charData)
-#                 maskBit = maskData[0]
-#                 if maskBit == 1:
-#                     _LOGGER.debug("Connected to Desk" )
-#                 elif maskBit == 64:
-#                     _LOGGER.debug("Connected to LegRest" )
-#                 elif maskBit == 128:
-#                     _LOGGER.debug("Connected to BackRest" )
-#                 elif maskBit == 0:
-#                     _LOGGER.debug("Invalid actuator" )
-#                 else:
-#                     _LOGGER.debug("Unknown actuator" )
-#         elif service.uuid == linak_service.Service.DPG:
-#             dpgChar = self._get_char_from_service(service, linak_service.Characteristic.DPG)            
-#             if dpgChar != None:
-#                 self._conn.subscribe_to_char(dpgChar, self._handle_dpg_notification)
-#                 self._conn.command(dpgChar, DPGCommand.PRODUCT_INFO)
-# #                 self._conn.command(dpgChar, DPGCommand.USER_ID)
-# #                 self._conn.command(dpgChar, DPGCommand.GET_CAPABILITIES)
-# #                 self._conn.command(dpgChar, DPGCommand.REMINDER_SETTING)
-#                 self._conn.command(dpgChar, DPGCommand.DESK_OFFSET)
-# #                 self._conn.command(dpgChar, DPGCommand.GET_SETUP)
-#                 ## invalid commands
-#                 self._conn.command(dpgChar, DPGCommand.GET_SET_MEMORY_POSITION_1)
-#                 self._conn.command(dpgChar, DPGCommand.GET_SET_MEMORY_POSITION_2)
-# #                 self._conn.command(dpgChar, DPGCommand.GET_SET_MEMORY_POSITION_3)
-# #                 self._conn.command(dpgChar, DPGCommand.GET_SET_MEMORY_POSITION_4)
-#
-#     def print_services(self):
-#         _LOGGER.debug("Discovering services")
-#         with self._conn as conn:
-#             peripheral = conn._conn
-# #             serviceList = peripheral.getServices()
-# #             for s in serviceList:
-# #                 _LOGGER.debug("Service: %s[%s]", s.uuid, s.uuid.getCommonName())
-# #                 charsList = s.getCharacteristics()
-# #                 for ch in charsList:
-# #                     charString = linak_service.Characteristic.printCharacteristic(ch)
-# #                     _LOGGER.debug("Char: %s", charString)
-#                     
+    def _handle_discovered_service(self, service):
+        serviceUUID = str(service.uuid).upper()
+        print( "Found service: %s[%s]" % (serviceUUID, service.uuid.getCommonName()) )
+        
+        conn = self._conn
+        if serviceUUID == linak_service.Service.GENERIC_ACCESS.uuid():
+            deviceName = conn.read_characteristic_by_enum(linak_service.Characteristic.DEVICE_NAME)
+            self._name = deviceName.decode("utf-8")
+            _LOGGER.debug("Received name: %s", self._name)
+            
+        elif serviceUUID == linak_service.Service.DPG.uuid():
+            dpgChar = conn.get_characteristic_by_enum(linak_service.Characteristic.DPG)            
+            if dpgChar != None:
+                conn.subscribe_to_notification_enum(linak_service.Characteristic.DPG, self._handle_dpg_notification)
+                conn.send_dpg_command( DPGCommand.USER_ID )
+                
+        elif serviceUUID == linak_service.Service.CONTROL.uuid():
+            conn.subscribe_to_notification_enum(linak_service.Characteristic.ERROR, self._handle_error_notification)
+            
+        elif serviceUUID == linak_service.Service.REFERENCE_OUTPUT.uuid():
+            maskData = conn.read_characteristic_by_enum(linak_service.Characteristic.MASK)
+            self._mask = datatype.Mask( maskData )
+            _LOGGER.debug("Received mask: %s", self._mask)
+             
+            conn.subscribe_to_notification_enum(linak_service.Characteristic.HEIGHT_SPEED, self._handle_reference_notification)
+            conn.subscribe_to_notification_enum(linak_service.Characteristic.TWO, self._handle_reference_notification)
+            conn.subscribe_to_notification_enum(linak_service.Characteristic.THREE, self._handle_reference_notification)
+            conn.subscribe_to_notification_enum(linak_service.Characteristic.FOUR, self._handle_reference_notification)
+            conn.subscribe_to_notification_enum(linak_service.Characteristic.FIVE, self._handle_reference_notification)
+            conn.subscribe_to_notification_enum(linak_service.Characteristic.SIX, self._handle_reference_notification)
+            conn.subscribe_to_notification_enum(linak_service.Characteristic.SEVEN, self._handle_reference_notification)
+            conn.subscribe_to_notification_enum(linak_service.Characteristic.EIGHT, self._handle_reference_notification)
+            
+        else:
+            print("Service not handled")
+
+    def print_services(self):
+        _LOGGER.debug("Discovering services")
+        with self._conn as conn:
+            peripheral = conn._conn
+            serviceList = peripheral.getServices()
+            for s in serviceList:
+                _LOGGER.debug("Service: %s[%s]", s.uuid, s.uuid.getCommonName())
+                charsList = s.getCharacteristics()
+                for ch in charsList:
+                    charString = linak_service.Characteristic.printCharacteristic(ch)
+                    _LOGGER.debug("Char: %s", charString)
+
+                descList = s.getDescriptors()
+                for desc in descList:
+    #                 _LOGGER.debug("Desc: %s: %s", desc, desc.read())
+                    _LOGGER.debug("Desc: %s", desc)
+                      
 #             _LOGGER.debug("Characteristics:")
 #             charsList = peripheral.getCharacteristics()
 #             for ch in charsList:
 #                 charString = linak_service.Characteristic.printCharacteristic(ch)
 #                 _LOGGER.debug("Char: %s", charString)
-#                 
-# #             _LOGGER.debug("Descriptors:")
-# #             descList = peripheral.getDescriptors()
-# #             for desc in descList:
-# # #                 _LOGGER.debug("Desc: %s: %s", desc, desc.read())
-# #                 _LOGGER.debug("Desc: %s", desc)
+                  
+#             _LOGGER.debug("Descriptors:")
+#             descList = peripheral.getDescriptors()
+#             for desc in descList:
+# #                 _LOGGER.debug("Desc: %s: %s", desc, desc.read())
+#                 _LOGGER.debug("Desc: %s", desc)
 
 
     def _handle_error_notification(self, cHandle, data):
