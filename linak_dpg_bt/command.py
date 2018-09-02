@@ -2,13 +2,11 @@
 #
 #
 
-import codecs
 import struct
 import logging
 
 from enum import Enum, unique
 
-from .datatype.desk_position import DeskPosition
 import linak_dpg_bt.linak_service as linak_service
 
 
@@ -16,7 +14,7 @@ _LOGGER = logging.getLogger(__name__)
 
 
 @unique
-class DPGCommand(Enum):
+class DPGCommandType(Enum):
     ## contains tow accessors: 'name' and 'value'
      
     PRODUCT_INFO = 8
@@ -47,7 +45,26 @@ class DPGCommand(Enum):
 #     GET_SET_MASSAGE_VALUES(245),
     GET_LOG_ENTRY = 144
     
-     
+
+    @classmethod
+    def findType(cls, value):
+        for item in DPGCommandType:
+            if item.value == value:
+                return item
+        return None
+
+
+
+class DPGCommand():    
+    
+    @classmethod
+    def get_read_command(cls, commandType):
+        return DPGCommand(commandType)
+    
+    @classmethod
+    def get_write_command(cls, commandType, data):
+        return DPGCommand(commandType, data)
+    
     @classmethod
     def is_valid_response(cls, data):
         if data[0] != 0x1:
@@ -58,49 +75,54 @@ class DPGCommand(Enum):
             _LOGGER.debug("These are not the data you're looking for - move along")
             return False 
         return True
-     
-    @classmethod
-    def parse_data(cls, data):
-        type = data[1]
-        value = data[2:]
-         
-        #TODO: implement
-         
-        return None
     
     @classmethod
-    def wrap_read_command(cls, value):
+    def wrap_read_command(cls, command):
         ## 0x7F is Byte.MAX_VALUE
-        return struct.pack('BBB', 0x7F, value, 0x0)
+        return struct.pack('BBB', 0x7F, command, 0x0)
+    
+    @classmethod
+    def wrap_write_command(cls, command, data):
+        ## 0x7F is Byte.MAX_VALUE
+        ## 0x80 is Byte.MIN_VALUE
+        header = struct.pack('BBB', 0x7F, command, 0x80)
+        buffer = bytes()
+        for val in data:
+            buffer += struct.pack('B', val)
+        return header + buffer
+    
+    
+    ## ====================================================================
+    
+    
+    def __init__(self, commandType, data = None):
+        self.type = commandType
+        self.data = data
+     
+    def __eq__(self, other):
+        if isinstance(other, int):
+            return False
+        if isinstance(other, DPGCommandType):
+            return self.type == other
+        else:
+            return NotImplemented
      
     def wrap_command(self):
-        return self.wrap_read_command(self.value)
+        command = self.type.value
+        if self.data == None:
+            ## read mode
+            return self.wrap_read_command(command)
+        else:
+            return self.wrap_write_command(command, self.data)
     
-    def getReceiver(self):
+    def get_receiver(self):
         return linak_service.Characteristic.DPG
     
-    def isReadOperation(self):
-#         boolean r;
-#         int i = 1;
-#         if (this.bytes.length >= 3) {
-#             r = true;
-#         } else {
-#             r = false;
-#         }
-#         if (this.bytes[2] != (byte) 0) {
-#             i = 0;
-#         }
-#         return r & i;
-        return True
+    def is_read_operation(self):
+        return (self.data == None)
     
-#     @property
-#     def raw_value(self):
-#         return codecs.encode(self._data, 'hex')
-# 
-#     @property
-#     def decoded_value(self):
-#         return self.raw_value
-    
+    def __str__(self):
+        return 'DPGCommand[%s, %s]' % (self.type.name, self.data)
 
 
 
@@ -111,6 +133,7 @@ class ControlCommand(Enum):
     MOVE_1_DOWN = 70
     MOVE_1_UP = 71
     
+    UNDEFINED = 254             ## used as stop 
     STOP_MOVING = 255
     
     
@@ -123,10 +146,10 @@ class ControlCommand(Enum):
         else:
             return struct.pack('BB', self.value, 0x0)
         
-    def getReceiver(self):
+    def get_receiver(self):
         return linak_service.Characteristic.CONTROL
         
-    def isReadOperation(self):
+    def is_read_operation(self):
         return True
     
         
@@ -138,10 +161,10 @@ class DirectionalCommand():
     def wrap_command(self):
         return struct.pack('BB', 0x0, self._position)
     
-    def getReceiver(self):
+    def get_receiver(self):
         return linak_service.Characteristic.CTRL1
     
-    def isReadOperation(self):
+    def is_read_operation(self):
         return True
     
     

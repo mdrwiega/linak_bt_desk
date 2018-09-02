@@ -18,13 +18,13 @@ class ServiceTest(unittest.TestCase):
         ## Called after testfunction was executed
         pass
        
-    def test_constructor_lower(self):
-        value = Service( Service.DPG.uuid().lower() )
+    def test_find_lower(self):
+        value = Service.find( Service.DPG.uuid().lower() )
         self.assertEqual( id(Service.DPG), id(value) )
         self.assertEqual( Service.DPG.uuid(), value.uuid() )
         
-    def test_constructor_upper(self):
-        value = Service( Service.DPG.uuid().upper() )
+    def test_find_upper(self):
+        value = Service.find( Service.DPG.uuid().upper() )
         self.assertEqual( id(Service.DPG), id(value) )
         self.assertEqual( Service.DPG.uuid(), value.uuid() )
         

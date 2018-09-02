@@ -15,9 +15,7 @@ class ServiceEnumMeta(EnumMeta):
     
 
 @unique
-class Service(Enum, metaclass=ServiceEnumMeta):
-    ## works for Python 2
-    __metaclass__ = ServiceEnumMeta
+class Service(Enum):
     
     ## contains tow accessors: 'name' and 'value'
     
@@ -27,12 +25,23 @@ class Service(Enum, metaclass=ServiceEnumMeta):
     DPG                 = "99FA0010-338A-1024-8A49-009C0215F78A"
     CONTROL             = "99FA0001-338A-1024-8A49-009C0215F78A"
 
+    GENERIC_ATTRIBUTE   = "00001801-0000-1000-8000-00805F9B34FB"
+    DEVICE_INFORMATION  = "0000180A-0000-1000-8000-00805F9B34FB"
 
+    
     def uuid(self):
         return self.value
 
     def __str__(self):
         return "%s.%s[%s]" % (self.__class__.__name__, self.name, self.value ) 
+
+    @classmethod
+    def find(cls, value):
+        strval = str(value).upper()
+        for item in Service:
+            if item.uuid() == strval:
+                return item
+        return None
 
 
 class CharacteristicEnumMeta(EnumMeta):

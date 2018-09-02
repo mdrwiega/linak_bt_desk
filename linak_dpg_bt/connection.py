@@ -9,48 +9,19 @@ import logging
 import codecs
 
 import struct
-import threading
 
 from time import sleep
 
 from bluepy import btle
 
 from .command import DPGCommand
-from .command_queue import CommandQueue
 import linak_dpg_bt.linak_service as linak_service
 import linak_dpg_bt.constants as constants
+from .synchronized import synchronized
+
 
 
 _LOGGER = logging.getLogger(__name__)
-
-
-
-##
-## Definition of function decorator
-##
-def synchronized_with_arg(lock_name = "_methods_lock"):
-      
-    def decorator(method):
-        def synced_method(self, *args, **kws):
-            lock = None
-            if hasattr(self, lock_name) == False:
-                lock = threading.RLock()
-                setattr(self, lock_name, lock)
-            else:
-                lock = getattr(self, lock_name)
-            with lock:
-                return method(self, *args, **kws)
-        return synced_method
-
-    return decorator
-    
-def synchronized(lock_name="_methods_lock"):
-    if callable(lock_name):
-        ### lock_name contains function to call
-        return synchronized_with_arg("_methods_lock")(lock_name)
-    else:
-        return synchronized_with_arg(lock_name)
-
 
 
 
@@ -115,7 +86,7 @@ class BTLEConnection(btle.DefaultDelegate):
     def handleNotification(self, handle, data):
         """Handle Callback from a Bluetooth (GATT) request."""
         if handle in self._callbacks:
-            _LOGGER.debug("Got notification from %s: %s", linak_service.Characteristic.find(handle), codecs.encode(data, 'hex'))
+#             _LOGGER.debug("Got notification from %s: %s", linak_service.Characteristic.find(handle), codecs.encode(data, 'hex'))
             self._callbacks[handle](handle, data)
         else:
             _LOGGER.debug("Got notification without callback from %s: %s", linak_service.Characteristic.find(handle), codecs.encode(data, 'hex'))
@@ -133,7 +104,7 @@ class BTLEConnection(btle.DefaultDelegate):
     def make_request(self, handle, value, timeout=constants.DEFAULT_TIMEOUT, with_response=True):
         """Write a GATT Command without callback - not utf-8."""
         try:
-            _LOGGER.debug("Writing request %s to %s with with_response=%s", codecs.encode(value, 'hex'), handle, with_response)
+            _LOGGER.debug("Writing request %s to %s w_resp=%s", codecs.encode(value, 'hex'), handle, with_response)
             self._conn.writeCharacteristic(handle, value, withResponse=with_response)
             if timeout:
                 _LOGGER.debug("Waiting for notifications for %s", timeout)
@@ -146,11 +117,11 @@ class BTLEConnection(btle.DefaultDelegate):
     def read_characteristic(self, handle):
         """Read a GATT Characteristic."""
         try:
-             _LOGGER.debug("Reading value %s", handle)
-             val = self._conn.readCharacteristic(handle)
-             bytes = bytearray(val)
-             _LOGGER.debug("Got value [%s]", " ".join("0x{:X}".format(x) for x in bytes) )
-             return val
+            _LOGGER.debug("Reading value %s", handle)
+            val = self._conn.readCharacteristic(handle)
+            bytesVal = bytearray(val)
+            _LOGGER.debug("Got value [%s]", " ".join("0x{:X}".format(x) for x in bytesVal) )
+            return val
         except btle.BTLEException as ex:
             _LOGGER.error("Got exception from bluepy while making a request: %s", ex)
             raise ex
@@ -160,6 +131,12 @@ class BTLEConnection(btle.DefaultDelegate):
         self.set_callback(notification_resp_handle, callback)
 
     def dpg_command(self, command_type):
+#         ## new way
+#         dpgCommandType = DPGCommandType.findType( command_type )
+#         if dpgCommandType == None:
+#             _LOGGER.error("Could not find command for value=%s", command_type)
+#             return
+#         self.send_dpg_read_command(dpgCommandType)
         self.currentCommand = command_type
         value = DPGCommand.wrap_read_command(command_type)
         self.make_request(constants.DPG_COMMAND_HANDLE, value)
@@ -178,8 +155,14 @@ class BTLEConnection(btle.DefaultDelegate):
         return oldCommand
         
     @synchronized
-    def send_dpg_command(self, dpgCommand):
-        self._send_command_repeated(linak_service.Characteristic.DPG, dpgCommand)
+    def send_dpg_read_command(self, dpgCommandType):
+        dpgCommand = DPGCommand.get_read_command(dpgCommandType)
+        return self._send_command_repeated(linak_service.Characteristic.DPG, dpgCommand)
+    
+    @synchronized
+    def send_dpg_write_command(self, dpgCommandType, data):
+        dpgCommand = DPGCommand.get_write_command(dpgCommandType, data)
+        return self._send_command_repeated(linak_service.Characteristic.DPG, dpgCommand)
     
     @synchronized
     def send_control_command(self, controlCommand):
@@ -197,36 +180,41 @@ class BTLEConnection(btle.DefaultDelegate):
             ##sleep(0.2)
             if self.currentCommand == None:
                 ## command handled -- do not resent again
-                break;
+                return True
             else:
                 _LOGGER.debug("Did not receive response: %s", rep)
         ### here notification callback is already handled
         ##_LOGGER.debug("Command handled")
+        return False
                 
     ### if with_response = True then exception will be raised in case of problems
     def _send_command_single(self, characteristicEnum, commandObj, with_response = True):
         self.currentCommand = commandObj
         value = commandObj.wrap_command()
-        _LOGGER.debug("Sending %s[%s] to %s with_response=%s", commandObj, codecs.encode(value, 'hex'), characteristicEnum, with_response)
+        _LOGGER.debug("Sending %s: %s to %s w_resp=%s", commandObj, codecs.encode(value, 'hex'), characteristicEnum, with_response)
         self._write_to_characteristic_raw( characteristicEnum.handle(), value, with_response=with_response)
 
     @synchronized
     def write_to_characteristic_by_enum(self, characteristicEnum, value, with_response = True):
-        _LOGGER.debug("Writing value %s to %s with with_response=%s", codecs.encode(value, 'hex'), characteristicEnum, with_response)
+        _LOGGER.debug("Writing value %s to %s w_resp=%s", codecs.encode(value, 'hex'), characteristicEnum, with_response)
         self._write_to_characteristic_raw( characteristicEnum.handle(), value, with_response=with_response )
         if with_response == True:
             timeout = max(constants.DEFAULT_TIMEOUT, 1)
-            _LOGGER.debug("Wait for notifications for %s", timeout)
-            self._conn.waitForNotifications(timeout)
-            _LOGGER.debug("Waiting done")
+#             _LOGGER.debug("Wait for notifications for %s", timeout)
+            succeed = self._conn.waitForNotifications(timeout)
+            if succeed == False:
+                _LOGGER.error("Waiting for notifications for %s FAILED", timeout)
+#             _LOGGER.debug("Waiting done")
             
     def _write_to_characteristic_raw(self,handle, value, with_response = True):
         self._conn.writeCharacteristic( handle, value, withResponse=with_response)
         if with_response == True:
             timeout = max(constants.DEFAULT_TIMEOUT, 1)
-            _LOGGER.debug("Wait for notifications for %s", timeout)
-            self._conn.waitForNotifications(timeout)
-            _LOGGER.debug("Waiting done")
+#             _LOGGER.debug("Wait for notifications for %s", timeout)
+            succeed = self._conn.waitForNotifications(timeout)
+            if succeed == False:
+                _LOGGER.error("Waiting for notifications for %s FAILED", timeout)
+#             _LOGGER.debug("Waiting done")
     
     def subscribe_to_notification_enum(self, characteristicEnum, callback):
         _LOGGER.debug("Subscribing to %s", characteristicEnum)
@@ -243,8 +231,8 @@ class BTLEConnection(btle.DefaultDelegate):
 #             _LOGGER.debug("This: %s %s" % (self, self._conn) )
             handleValue = characteristicEnum.handle()
             retVal = self._conn.readCharacteristic(handleValue)
-            bytes = bytearray(retVal)
-            _LOGGER.debug("Got value [%s]", " ".join("0x{:X}".format(x) for x in bytes) )
+            bytesVal = bytearray(retVal)
+            _LOGGER.debug("Got value [%s]", " ".join("0x{:X}".format(x) for x in bytesVal) )
             return retVal
         except btle.BTLEException as ex:
             _LOGGER.error("Got exception from bluepy while making a request: %s", ex)
