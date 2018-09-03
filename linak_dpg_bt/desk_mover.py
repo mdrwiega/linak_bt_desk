@@ -43,7 +43,7 @@ class DeskMover:
                     self._send_move_to()
                     sleep(0.2)
 
-    def _handle_notification(self, data):
+    def _handle_notification(self, cHandle, data):
         hs = HeightSpeed.from_bytes(data)
 
         _LOGGER.debug("Current relative height: %s, speed: %f", hs.height.human_cm, hs.speed.parsed)

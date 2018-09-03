@@ -87,7 +87,12 @@ class BTLEConnection(btle.DefaultDelegate):
         """Handle Callback from a Bluetooth (GATT) request."""
         if handle in self._callbacks:
 #             _LOGGER.debug("Got notification from %s: %s", linak_service.Characteristic.find(handle), codecs.encode(data, 'hex'))
-            self._callbacks[handle](handle, data)
+            callback = self._callbacks[handle]
+            try:
+                callback(handle, data)
+            except TypeError as e:
+                _LOGGER.error( "error: %s for %s", e, repr(callback) )
+                raise e
         else:
             _LOGGER.debug("Got notification without callback from %s: %s", linak_service.Characteristic.find(handle), codecs.encode(data, 'hex'))
 
@@ -113,36 +118,9 @@ class BTLEConnection(btle.DefaultDelegate):
             _LOGGER.error("Got exception from bluepy while making a request: %s", ex)
             raise ex
 
-    @synchronized
-    def read_characteristic(self, handle):
-        """Read a GATT Characteristic."""
-        try:
-            _LOGGER.debug("Reading value %s", handle)
-            val = self._conn.readCharacteristic(handle)
-            bytesVal = bytearray(val)
-            _LOGGER.debug("Got value [%s]", " ".join("0x{:X}".format(x) for x in bytesVal) )
-            return val
-        except btle.BTLEException as ex:
-            _LOGGER.error("Got exception from bluepy while making a request: %s", ex)
-            raise ex
-
     def subscribe_to_notification(self, notification_handle, notification_resp_handle, callback):
         self.make_request(notification_handle, struct.pack('BB', 1, 0), with_response=False)
         self.set_callback(notification_resp_handle, callback)
-
-    def dpg_command(self, command_type):
-#         ## new way
-#         dpgCommandType = DPGCommandType.findType( command_type )
-#         if dpgCommandType == None:
-#             _LOGGER.error("Could not find command for value=%s", command_type)
-#             return
-#         self.send_dpg_read_command(dpgCommandType)
-        self.currentCommand = command_type
-        value = DPGCommand.wrap_read_command(command_type)
-        self.make_request(constants.DPG_COMMAND_HANDLE, value)
-        ### here notification callback is already handled
-        self.currentCommand = None
-        sleep(0.2)
 
 
     ## =======================================================

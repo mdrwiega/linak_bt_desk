@@ -52,6 +52,8 @@ class LinakDesk:
         self._desk_offset = None
         self._fav_position_1 = None
         self._fav_position_2 = None
+        self._fav_position_3 = None
+        self._fav_position_4 = None
         self._height_speed = None
         self._mask = None
         self._posChangeCallback = None
@@ -85,6 +87,9 @@ class LinakDesk:
     def favorite_position_4(self):
         return self._wait_for_variable('_fav_position_4')
 
+    def favorite_position(self, favIndex):
+        return self._wait_for_variable('_fav_position_' + str(favIndex))
+
     @property
     def current_height(self):
         return self.height_speed.height
@@ -98,24 +103,7 @@ class LinakDesk:
         return self._wait_for_variable('_height_speed')
 
     def read_dpg_data(self):
-        _LOGGER.debug("Querying the device..")
-
-        with self._conn as conn:
-            """ We need to query for name before doing anything, without it device doesnt respond """
-
-            self._name = conn.read_characteristic_by_enum(linak_service.Characteristic.DEVICE_NAME).decode("utf-8")
-
-            conn.subscribe_to_notification_enum(linak_service.Characteristic.DPG, self._handle_dpg_notification)
-
-            conn.dpg_command( constants.PROP_DESK_OFFSET )
-            conn.dpg_command( constants.PROP_MEMORY_POSITION_1 )
-            conn.dpg_command( constants.PROP_MEMORY_POSITION_2 )
-            
-            conn.send_dpg_read_command( DPGCommandType.PRODUCT_INFO )
-            conn.send_dpg_read_command( DPGCommandType.GET_SET_MEMORY_POSITION_3 )
-            conn.send_dpg_read_command( DPGCommandType.GET_SET_MEMORY_POSITION_4 )
-            
-            self._height_speed = HeightSpeed.from_bytes(conn.read_characteristic(constants.REFERENCE_OUTPUT_HANDLE))
+        self.initialize()
 
     def __str__(self):
         return "[%s] Desk offset: %s, name: %s\nFav1: %s, Fav2: %s Height with offset: %s" % (
@@ -159,14 +147,13 @@ class LinakDesk:
     def _with_desk_offset(self, value):
         return DeskPosition(value.raw + self.desk_offset.raw)
 
-    #TODO: split to old and new version
     def _handle_dpg_notification(self, cHandle, data):
         """Handle Callback from a Bluetooth (GATT) request."""
         ##_LOGGER.debug("Received notification from the device..")
-
+        
 #         ### convert string to byte array, required for Python2
 #         data = bytearray(data)
-        
+
         currentCommand = self._conn.handleCurrentCommand()
         #if currentCommand == None:
         
@@ -175,26 +162,12 @@ class LinakDesk:
             return 
 
         _LOGGER.debug("Received response for command %s: %s", currentCommand, " ".join("0x{:X}".format(x) for x in data) )
-
-        ## old way
-        if currentCommand == constants.PROP_GET_CAPABILITIES:
-            self._capabilities = datatype.Capabilities( data )
-            _LOGGER.debug( "Caps: %s", self._capabilities )
-        elif currentCommand == constants.PROP_DESK_OFFSET:
-            self._desk_offset = datatype.DeskPosition.create(data)
-            _LOGGER.debug( "Desk offset: %s", self._desk_offset )
-        elif currentCommand == constants.PROP_MEMORY_POSITION_1:
-            self._fav_position_1 = datatype.FavoritePosition(data)
-            _LOGGER.debug( "Favorite 1: %s", self._fav_position_1 )
-        elif currentCommand == constants.PROP_MEMORY_POSITION_2:
-            self._fav_position_2 = datatype.FavoritePosition(data)
-            _LOGGER.debug( "Favorite 2: %s", self._fav_position_2 )
-
-        ## new way
-        elif currentCommand == DPGCommandType.PRODUCT_INFO:
+        
+        if currentCommand == DPGCommandType.PRODUCT_INFO:
             info = datatype.ProductInfo( data )
             _LOGGER.debug("Product info: %s", info)
         elif currentCommand == DPGCommandType.GET_SETUP:
+            ## do nothing
             pass
         elif currentCommand == DPGCommandType.USER_ID:
             uId = datatype.UserId( data )
@@ -294,10 +267,15 @@ class LinakDesk:
                 userId = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
                 conn.send_dpg_write_command( DPGCommandType.USER_ID, userId )
        
-                conn.send_dpg_read_command( DPGCommandType.GET_SET_MEMORY_POSITION_1 )
-                conn.send_dpg_read_command( DPGCommandType.GET_SET_MEMORY_POSITION_2 )
-                conn.send_dpg_read_command( DPGCommandType.GET_SET_MEMORY_POSITION_3 )
-                conn.send_dpg_read_command( DPGCommandType.GET_SET_MEMORY_POSITION_4 )
+                favNum = self.read_favorite_number()
+                if favNum >= 1:
+                    conn.send_dpg_read_command( DPGCommandType.GET_SET_MEMORY_POSITION_1 )
+                if favNum >= 2:
+                    conn.send_dpg_read_command( DPGCommandType.GET_SET_MEMORY_POSITION_2 )
+                if favNum >= 3:
+                    conn.send_dpg_read_command( DPGCommandType.GET_SET_MEMORY_POSITION_3 )
+                if favNum >= 4:
+                    conn.send_dpg_read_command( DPGCommandType.GET_SET_MEMORY_POSITION_4 )
 
     
             self._notificationHandler.start()
@@ -323,10 +301,17 @@ class LinakDesk:
             return caps.memSize
         return None
 
-    def moveTo(self, position):
-        with self._conn as conn:
-            command = DirectionalCommand( position )
-            conn.send_directional_command( command )
+    def read_favorite_values(self):
+        favNumber = self.read_favorite_number()
+        retList = []
+        for i in range(favNumber):
+            fav = self.favorite_position(i+1)
+            if fav.position != None:
+                favPos = self._with_desk_offset( fav.position )
+                retList.append( favPos.human_cm )
+            else:
+                retList.append(None)
+        return retList
 
     def moveUp(self):
         ## custom: 71, 64 | 0
@@ -341,10 +326,22 @@ class LinakDesk:
 #         _LOGGER.debug("Sending moveDown")
         with self._conn as conn:
             conn.send_control_command( ControlCommand.MOVE_1_DOWN )
+
+    def moveToFav(self, favIndex):
+        fav = self.favorite_position(favIndex+1)
+        if fav.position == None:
+            return
+        self._move_to_raw(fav.position.raw)
+     
+    def moveTo(self, position):
+        print("moving to:", position)
+        if position == None:
+            return
+        with self._conn as conn:
+            command = DirectionalCommand( position )
+            conn.send_directional_command( command )
      
     def stopMoving(self):
-        ## custom: 255, 64 | 0
-        ## standard: 255, 0
         with self._conn as conn:
 #             _LOGGER.debug("Sending stopMoving")
             conn.send_control_command( ControlCommand.STOP_MOVING )
