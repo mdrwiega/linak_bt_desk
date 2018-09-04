@@ -109,7 +109,10 @@ class BTLEConnection(btle.DefaultDelegate):
     def make_request(self, handle, value, timeout=constants.DEFAULT_TIMEOUT, with_response=True):
         """Write a GATT Command without callback - not utf-8."""
         try:
-            _LOGGER.debug("Writing request %s to %s w_resp=%s", codecs.encode(value, 'hex'), handle, with_response)
+            charEnum = linak_service.Characteristic.findByHandle(handle)
+            if charEnum == None:
+                charEnum = handle
+            _LOGGER.debug("Writing request %s to %s w_resp=%s", codecs.encode(value, 'hex'), charEnum, with_response)
             self._conn.writeCharacteristic(handle, value, withResponse=with_response)
             if timeout:
                 _LOGGER.debug("Waiting for notifications for %s", timeout)

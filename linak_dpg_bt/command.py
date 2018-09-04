@@ -159,7 +159,7 @@ class DirectionalCommand():
         self._position = position
     
     def wrap_command(self):
-        return struct.pack('BB', 0x0, self._position)
+        return struct.pack('<H', self._position)
     
     def get_receiver(self):
         return linak_service.Characteristic.CTRL1
@@ -167,5 +167,6 @@ class DirectionalCommand():
     def is_read_operation(self):
         return True
     
-    
+    def __str__(self):
+        return 'DirectionalCommand[%s]' % (self._position)    
     

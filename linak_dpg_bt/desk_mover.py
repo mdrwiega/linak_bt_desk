@@ -6,7 +6,9 @@ import logging
 from time import sleep
 
 from threading import Timer
-from threading import Thread, Event
+from threading import Thread, Event, current_thread
+
+import functools
 
 import linak_dpg_bt.constants as constants
 ##import linak_dpg_bt.linak_service as linak_service
@@ -76,7 +78,9 @@ class CommandThread(Thread):
         
     def stop(self):
         self.stopEvent.set()
-        self.join()
+        if current_thread() != self:
+            ## called from other thread -- join
+            self.join()
         
     def _thread_loop(self):
         while not self.stopEvent.is_set():
@@ -108,6 +112,14 @@ class DeskMoverThread():
         _LOGGER.info( "moving down" )
         self.thread = CommandThread( self._handle_moveDown )
         self.thread.start()
+        
+    @synchronized    
+    def moveToFav(self, favIndex):
+        self._stop_thread()
+        _LOGGER.info( "moving to fav %s" % favIndex )
+        favHandler = functools.partial(self._handle_moveToFav, favIndex)
+        self.thread = CommandThread( favHandler )
+        self.thread.start()
 
     @synchronized
     def stopMoving(self):
@@ -126,6 +138,12 @@ class DeskMoverThread():
 
     def _handle_moveDown(self):
         self.device.moveDown()
+
+    def _handle_moveToFav(self, favIndex):
+        self.device.moveToFav(favIndex)
+        if self.device.current_speed.raw < 1:
+            ## stopped moving
+            self.stopMoving()
 
     def _handle_stop(self):
         self.device.stopMoving()

@@ -42,7 +42,8 @@ class DeskPosition:
     def cm(self):
         if self.raw == None:
             return None
-        return math.ceil(self.raw / 100.0)
+        return round(self.raw / 100.0)
+#         return math.ceil(self.raw / 100.0)
 
     @property
     def human_cm(self):
@@ -51,5 +52,5 @@ class DeskPosition:
         return "%d cm" % self.cm
     
     def __str__(self):
-        return "%s[%s]" % (self.__class__.__name__, self.human_cm)
+        return "%s[%s]" % (self.__class__.__name__, self.raw)
     

@@ -93,6 +93,10 @@ class LinakDesk:
     @property
     def current_height(self):
         return self.height_speed.height
+    
+    @property
+    def current_speed(self):
+        return self.height_speed.speed
 
     @property
     def current_height_with_offset(self):
@@ -255,14 +259,13 @@ class LinakDesk:
                 conn.send_dpg_read_command( DPGCommandType.USER_ID )
                 conn.send_dpg_read_command( DPGCommandType.PRODUCT_INFO )
                 conn.send_dpg_read_command( DPGCommandType.GET_SETUP )
-                                 
-                heightData = conn.read_characteristic_by_enum(linak_service.Characteristic.HEIGHT_SPEED)
-                self._height_speed = datatype.HeightSpeed.from_bytes( heightData )
-                _LOGGER.debug("Received height: %s", self._height_speed)
                  
                 conn.send_dpg_read_command( DPGCommandType.GET_CAPABILITIES )
                 conn.send_dpg_read_command( DPGCommandType.REMINDER_SETTING )
                 conn.send_dpg_read_command( DPGCommandType.DESK_OFFSET )
+                                 
+                heightData = conn.read_characteristic_by_enum(linak_service.Characteristic.HEIGHT_SPEED)
+                self._handle_heigh_speed_notification( linak_service.Characteristic.HEIGHT_SPEED.handle(), heightData )
                  
                 userId = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
                 conn.send_dpg_write_command( DPGCommandType.USER_ID, userId )
@@ -331,10 +334,10 @@ class LinakDesk:
         fav = self.favorite_position(favIndex+1)
         if fav.position == None:
             return
-        self._move_to_raw(fav.position.raw)
+        pos = fav.position.raw
+        self.moveTo(pos)
      
     def moveTo(self, position):
-        print("moving to:", position)
         if position == None:
             return
         with self._conn as conn:
@@ -399,7 +402,8 @@ class LinakDesk:
         data = bytearray(data)
  
         self._height_speed = datatype.HeightSpeed.from_bytes( data )
-        _LOGGER.debug("Received height: %s", self._height_speed)
+        pos = self.current_height_with_offset
+        _LOGGER.debug("Received height: %s data: %s", pos, self._height_speed)
         
         if self._posChangeCallback != None:
             self._posChangeCallback()
