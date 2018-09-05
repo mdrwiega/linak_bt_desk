@@ -1,6 +1,23 @@
-##
-##
-##
+'''
+Implementation of method '@synchronized' decorator. it reflects functionality
+of 'synchronized' keyword from Java language.
+It accepts one optional argument -- name of lock field declared within object.
+
+Usage examples:
+
+    @synchronized
+    def send_dpg_write_command(self, dpgCommandType, data):
+        pass
+        
+    @synchronized()
+    def send_dpg_write_command(self, dpgCommandType, data):
+        pass
+
+    @synchronized("myLock")
+    def send_dpg_write_command(self, dpgCommandType, data):
+        pass
+
+'''
 
 
 import threading

@@ -4,7 +4,6 @@
 
 import threading
 from collections import deque
-from threading import Timer
 
 
 
@@ -19,7 +18,7 @@ class CommandQueue():
         self.lock = threading.RLock()
 
     def add(self, command):
-        with lock:
+        with self.lock:
             self.queue.appendleft(command)
             if self.timer != None:
                 ## sending thread already running
@@ -28,20 +27,20 @@ class CommandQueue():
     
     def markCommandHandled(self):
         ## indicate that command was handled
-        with lock:
+        with self.lock:
             oldCommand = self.currentCommand
             self.currentCommand = None
             return oldCommand
     
     def _sendNextCommand(self):
-        with lock:
+        with self.lock:
             if len(self.queue) < 1:
                 return
             self.retries = 0
             self._resendCommand()
     
     def _timeout(self):
-        with lock:
+        with self.lock:
             if self.currentCommand == None:
                 self._sendNextCommand()
                 return
@@ -57,7 +56,7 @@ class CommandQueue():
     def _resendCommand(self):
         self.currentCommand = self.queue.pop()
         self.connection.send_dpg_command_raw( self.currentCommand )
-        self.timer = Timer(1, self._timeout, ())
+        self.timer = threading.Timer(1, self._timeout, ())
         self.timer.start()                          ## call at most once
     
     

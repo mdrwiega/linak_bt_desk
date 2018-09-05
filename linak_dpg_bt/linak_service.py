@@ -2,13 +2,13 @@
 #
 #
 
-from bluepy import btle
 
 from enum import Enum, EnumMeta, unique
 
 
 
 class ServiceEnumMeta(EnumMeta):
+    @classmethod
     def __call__(cls, value, *args, **kw):
         strval = str(value).upper()
         return EnumMeta.__call__(cls, strval, *args, **kw)
@@ -45,6 +45,7 @@ class Service(Enum):
 
 
 class CharacteristicEnumMeta(EnumMeta):
+    @classmethod
     def __call__(cls, value, *args, **kw):
         if isinstance(value, str):
             found = cls.findByUUID(value)
