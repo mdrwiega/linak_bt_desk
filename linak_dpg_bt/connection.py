@@ -7,10 +7,7 @@ Handles Connection duties (reconnecting etc.) transparently.
 
 import logging
 import codecs
-
 import struct
-
-from time import sleep
 
 from bluepy import btle
 
@@ -179,13 +176,6 @@ class BTLEConnection(btle.DefaultDelegate):
     def write_to_characteristic_by_enum(self, characteristicEnum, value, with_response = True):
         _LOGGER.debug("Writing value %s to %s w_resp=%s", codecs.encode(value, 'hex'), characteristicEnum, with_response)
         self._write_to_characteristic_raw( characteristicEnum.handle(), value, with_response=with_response )
-        if with_response == True:
-            timeout = max(constants.DEFAULT_TIMEOUT, 1)
-#             _LOGGER.debug("Wait for notifications for %s", timeout)
-            succeed = self._conn.waitForNotifications(timeout)
-            if succeed == False:
-                _LOGGER.error("Waiting for notifications for %s FAILED", timeout)
-#             _LOGGER.debug("Waiting done")
             
     def _write_to_characteristic_raw(self,handle, value, with_response = True):
         self._conn.writeCharacteristic( handle, value, withResponse=with_response)

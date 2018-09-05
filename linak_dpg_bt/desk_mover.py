@@ -127,10 +127,9 @@ class DeskMoverThread():
         self._stop_thread()
         
     def _stop_thread(self):
-        if self.thread == None:
-            return
-        self.thread.stop()
-        self.thread = None
+        if self.thread != None:
+            self.thread.stop()
+            self.thread = None
         self._handle_stop()
 
     def _handle_moveUp(self):

@@ -9,12 +9,9 @@ from threading import Thread
 import linak_dpg_bt.linak_service as linak_service
 import linak_dpg_bt.datatype as datatype
  
-import linak_dpg_bt.constants as constants
 from .connection import BTLEConnection
 from .desk_mover import DeskMover
-from .datatype.desk_position import DeskPosition
 from .command import DPGCommandType, DPGCommand, ControlCommand, DirectionalCommand
-from .datatype.height_speed import HeightSpeed
 
 
 
@@ -57,6 +54,7 @@ class LinakDesk:
         self._height_speed = None
         self._mask = None
         self._posChangeCallback = None
+        self._speedChangeCallback = None
         self._notificationHandler = NotificationHandler(self)
 
     @property
@@ -120,7 +118,7 @@ class LinakDesk:
         )
 
     def move_to_cm(self, cm):
-        calculated_raw = DeskPosition.raw_from_cm(cm - self._desk_offset.cm)
+        calculated_raw = datatype.DeskPosition.raw_from_cm(cm - self._desk_offset.cm)
         self._move_to_raw(calculated_raw)
 
     def move_to_fav(self, fav):
@@ -149,7 +147,7 @@ class LinakDesk:
         raise DPGCommandReadError('Cannot fetch value for %s' % var_name)
 
     def _with_desk_offset(self, value):
-        return DeskPosition(value.raw + self.desk_offset.raw)
+        return datatype.DeskPosition(value.raw + self.desk_offset.raw)
 
     def _handle_dpg_notification(self, cHandle, data):
         """Handle Callback from a Bluetooth (GATT) request."""
@@ -291,10 +289,16 @@ class LinakDesk:
      
     def set_position_change_callback(self, callback):
         self._posChangeCallback = callback
+        
+    def set_speed_change_callback(self, callback):
+        self._speedChangeCallback = callback
 
     def read_current_position(self):
         currPos = self.current_height_with_offset
         return currPos.cm
+    
+    def read_current_speed(self):
+        return self.current_speed.raw
      
     def read_favorite_number(self):
         with self._conn:
@@ -402,11 +406,16 @@ class LinakDesk:
         data = bytearray(data)
  
         self._height_speed = datatype.HeightSpeed.from_bytes( data )
-        pos = self.current_height_with_offset
+        pos = self.current_height_with_offset.raw
         _LOGGER.debug("Received height: %s data: %s", pos, self._height_speed)
+        
+        for hand in _LOGGER.handlers:
+            hand.flush()
         
         if self._posChangeCallback != None:
             self._posChangeCallback()
+        if self._speedChangeCallback != None:
+            self._speedChangeCallback()
             
     def _handle_reference_notification(self, cHandle, data):
         """Handle Callback from a Bluetooth (GATT) reference."""
@@ -420,5 +429,5 @@ class LinakDesk:
         with self._conn as conn:
             while True:
                 conn.processNotifications()
-                sleep(0.1)                      ## prevents starving other thread
+                sleep(0.001)                      ## prevents starving other thread
         
