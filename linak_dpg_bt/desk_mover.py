@@ -101,35 +101,30 @@ class DeskMoverThread():
 
     @synchronized
     def moveUp(self):
-        self._stop_thread()
         _LOGGER.info( "moving up" )
-        self.thread = CommandThread( self._handle_moveUp )
-        self.thread.start()
+        self.stopMoving()
+        self.spawnThread( self._handle_moveUp )
     
     @synchronized    
     def moveDown(self):
-        self._stop_thread()
         _LOGGER.info( "moving down" )
-        self.thread = CommandThread( self._handle_moveDown )
-        self.thread.start()
+        self.stopMoving()
+        self.spawnThread( self._handle_moveDown )
         
     @synchronized    
     def moveToFav(self, favIndex):
-        self._stop_thread()
-        _LOGGER.info( "moving to fav %s" % favIndex )
+        _LOGGER.info( "moving to fav %s" % (favIndex) )
+        self.stopMoving()
+        _LOGGER.info( "initializing new thread" )
         favHandler = functools.partial(self._handle_moveToFav, favIndex)
-        self.thread = CommandThread( favHandler )
-        self.thread.start()
+        self.spawnThread( favHandler )
 
-    @synchronized
     def stopMoving(self):
-        _LOGGER.info( "stopping moving" )
-        self._stop_thread()
-        
-    def _stop_thread(self):
-        if self.thread != None:
-            self.thread.stop()
-            self.thread = None
+        currentThread = self.extractThread()
+        if currentThread != None:
+            _LOGGER.info( "stopping thread %s" % (currentThread) )
+            currentThread.stop()
+        _LOGGER.info( "stopping device" )
         self._handle_stop()
 
     def _handle_moveUp(self):
@@ -142,8 +137,20 @@ class DeskMoverThread():
         self.device.moveToFav(favIndex)
         if self.device.current_speed.raw < 1:
             ## stopped moving
+            _LOGGER.info( "device stopped" )
             self.stopMoving()
 
     def _handle_stop(self):
         self.device.stopMoving()
 
+    @synchronized("thread_lock")
+    def spawnThread(self, handler):
+        self.thread = CommandThread( handler )
+        self.thread.start()
+        _LOGGER.info( "new thread spawned %s" % (self.thread) )
+    
+    @synchronized("thread_lock")
+    def extractThread(self):
+        tmpThread = self.thread
+        self.thread = None
+        return tmpThread
