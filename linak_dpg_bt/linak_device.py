@@ -44,6 +44,8 @@ class LinakDesk:
         self._conn = BTLEConnection(bdaddr)
 
         self._name = None
+        self._manu = None
+        self._model = None
         self._userType = None
         self._capabilities = None
         self._desk_offset = None
@@ -60,6 +62,12 @@ class LinakDesk:
     @property
     def name(self):
         return self._wait_for_variable('_name')
+    
+    @property
+    def deviceType(self):
+        model = self._wait_for_variable('_model')
+        manu = self._wait_for_variable('_manu')
+        return model + " " + manu
     
     @property
     def userType(self):
@@ -231,13 +239,22 @@ class LinakDesk:
                 self._find_service(services, linak_service.Service.GENERIC_ACCESS)
                 self._find_service(services, linak_service.Service.DPG)
                 self._find_service(services, linak_service.Service.CONTROL)
+                self._find_service(services, linak_service.Service.REFERENCE_INPUT)
                 self._find_service(services, linak_service.Service.REFERENCE_OUTPUT)
                 
                 
                 deviceName = conn.read_characteristic_by_enum(linak_service.Characteristic.DEVICE_NAME)
                 self._name = deviceName.decode("utf-8")
                 _LOGGER.debug("Received name: %s", self._name)
-       
+                
+                manufacturer = conn.read_characteristic_by_enum(linak_service.Characteristic.MANUFACTURER)
+                self._manu = manufacturer.decode("utf-8")
+                _LOGGER.debug("Received manufacturer: %s", self._manu)
+                
+                model = conn.read_characteristic_by_enum(linak_service.Characteristic.MODEL_NUMBER)
+                self._model = model.decode("utf-8")
+                _LOGGER.debug("Received model: %s", self._model)
+
                 conn.subscribe_to_notification_enum(linak_service.Characteristic.DPG, self._handle_dpg_notification)
                 conn.subscribe_to_notification_enum(linak_service.Characteristic.ERROR, self._handle_error_notification)
                    
