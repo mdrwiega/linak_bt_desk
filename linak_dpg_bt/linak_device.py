@@ -70,6 +70,10 @@ class LinakDesk:
         return model + " " + manu
     
     @property
+    def capabilities(self):
+        return self._wait_for_variable('_capabilities').capString()
+    
+    @property
     def userType(self):
         return self._wait_for_variable('_userType')
 

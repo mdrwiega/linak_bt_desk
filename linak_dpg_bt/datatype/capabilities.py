@@ -21,6 +21,29 @@ class Capabilities:
         self.hasDisplay = (capByte & 64) != 0
         self.hasLight = (capByte & 128) != 0
     
+    def capString(self):
+        retString = ""
+        if self.autoUp == True:
+            retString += "AU"
+        else:
+            retString += "au"
+        retString += " "
+        if self.autoDown == True:
+            retString += "AD"
+        else:
+            retString += "ad"
+        retString += " "
+        if self.hasDisplay == True:
+            retString += "HD"
+        else:
+            retString += "hd"
+        retString += " "
+        if self.hasLight == True:
+            retString += "HL"
+        else:
+            retString += "hl"
+        return retString
+    
     def __str__(self):
         refString = self._refString()
         return "%s[%s %s %s %s %s %s refs: %s]" % (self.__class__.__name__, 
