@@ -76,6 +76,10 @@ class LinakDesk:
     @property
     def userType(self):
         return self._wait_for_variable('_userType')
+    
+    @property
+    def reminder(self):
+        return self._wait_for_variable('_reminder').info()
 
     @property
     def desk_offset(self):
@@ -191,8 +195,8 @@ class LinakDesk:
             self._capabilities = datatype.Capabilities( data )
             _LOGGER.debug( "Caps: %s", self._capabilities )
         elif currentCommand == DPGCommandType.REMINDER_SETTING:
-            reminder = datatype.ReminderSetting( data )
-            _LOGGER.debug( "Reminder: %s", reminder )
+            self._reminder = datatype.ReminderSetting( data )
+            _LOGGER.debug( "Reminder: %s", self._reminder )
         elif currentCommand == DPGCommandType.DESK_OFFSET:
             self._desk_offset = datatype.DeskPosition.create(data)
             _LOGGER.debug( "Desk offset: %s", self._desk_offset )
