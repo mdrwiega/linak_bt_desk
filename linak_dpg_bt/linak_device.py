@@ -194,6 +194,10 @@ class LinakDesk:
         elif currentCommand == DPGCommandType.GET_CAPABILITIES:
             self._capabilities = datatype.Capabilities( data )
             _LOGGER.debug( "Caps: %s", self._capabilities )
+        elif currentCommand == DPGCommandType.GET_SET_REMINDER_TIME:
+            ##self._reminder = datatype.ReminderSetting( data )
+            ##_LOGGER.debug( "Reminder: %s", self._reminder )
+            pass
         elif currentCommand == DPGCommandType.REMINDER_SETTING:
             self._reminder = datatype.ReminderSetting( data )
             _LOGGER.debug( "Reminder: %s", self._reminder )
@@ -212,6 +216,16 @@ class LinakDesk:
         elif currentCommand == DPGCommandType.GET_SET_MEMORY_POSITION_4:
             self._fav_position_4 = datatype.FavoritePosition(data)
             _LOGGER.debug( "Favorite 4: %s", self._fav_position_4 )
+        elif currentCommand == DPGCommandType.GET_LOG_ENTRY:
+            logData = data[2:]
+            if len(logData) > 4:
+                logType = logData[0]
+                if logType == 135:
+                    _LOGGER.debug( "New position: %s", logData[1] )
+                else:
+                    _LOGGER.debug( "Log: %s", " ".join("0x{:X}".format(x) for x in logData) )
+            else:
+                _LOGGER.debug( "no log data" )
         else:
             _LOGGER.debug( "Command not handled" )
 
@@ -303,6 +317,8 @@ class LinakDesk:
                 if favNum >= 4:
                     conn.send_dpg_read_command( DPGCommandType.GET_SET_MEMORY_POSITION_4 )
 
+                ## conn.send_dpg_read_command( DPGCommandType.GET_SET_REMINDER_TIME )
+                ## conn.send_dpg_read_command( DPGCommandType.GET_LOG_ENTRY )
     
             self._notificationHandler.start()
     

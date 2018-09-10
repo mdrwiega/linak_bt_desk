@@ -14,7 +14,7 @@ class ReminderSetting:
         self.impulseUp = (settingsByte & 8) != 0
         self.impulseDown = (settingsByte & 16) != 0
         self.wake = (settingsByte & 32) != 0
-        self.guide = (settingsByte & 64) != 0
+        self.lightGuide = (settingsByte & 64) != 0
         
         self.r1 = Reminder(settings[1:3])
         self.r2 = Reminder(settings[3:5])
@@ -45,15 +45,15 @@ class ReminderSetting:
             retString += " W"
         else:
             retString += " w"
-        if self.guide == True:
-            retString += " G"
+        if self.lightGuide == True:
+            retString += " L"
         else:
-            retString += " g"
+            retString += " l"
         return retString
     
     def __str__(self):
         return "%s[%s %s %s %s %s %s, %s %s %s]" % (self.__class__.__name__,
-                                                    self.reminder, self.cmEnabled, self.impulseUp, self.impulseDown, self.wake, self.guide, 
+                                                    self.reminder, self.cmEnabled, self.impulseUp, self.impulseDown, self.wake, self.lightGuide, 
                                                     self.r1, self.r2, self.r3,
                                                 )
     
