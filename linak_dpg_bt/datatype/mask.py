@@ -26,18 +26,18 @@ class Mask:
     
     def __init__(self, data):
         self.maskByte = data[0]
-        self.acuator = ActuatorType.Unknown
+        self.actuator = ActuatorType.Unknown
         if self.maskByte & 1:
-            self.acuator = ActuatorType.Desk
+            self.actuator = ActuatorType.Desk
         elif self.maskByte & 64:
-            self.acuator = ActuatorType.LegRest
+            self.actuator = ActuatorType.LegRest
         elif self.maskByte & 128:
-            self.acuator = ActuatorType.BackRest
+            self.actuator = ActuatorType.BackRest
         elif self.maskByte == 0:
-            self.acuator = ActuatorType.Invalid
+            self.actuator = ActuatorType.Invalid
         else:
-            self.acuator = ActuatorType.Unknown
+            self.actuator = ActuatorType.Unknown
         
     def __str__(self):
-        return "%s[%s %s]" % (self.__class__.__name__, self.acuator, hex(self.maskByte))
+        return "%s[%s %s]" % (self.__class__.__name__, self.actuator, hex(self.maskByte))
     
