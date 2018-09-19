@@ -55,6 +55,7 @@ class BTLEConnection(btle.DefaultDelegate):
                 self._conn.withDelegate(self)
                 self._conn.connect(self._mac, addrType='random')
                 connected = True
+                break
             except btle.BTLEException as ex:
                 _LOGGER.debug("Unable to connect to the device %s, retrying: %s", self._mac, ex)
                 
