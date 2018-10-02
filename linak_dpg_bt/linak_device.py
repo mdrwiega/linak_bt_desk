@@ -19,6 +19,20 @@ _LOGGER = logging.getLogger(__name__)
 
 
 
+def to_string(data, numberType):
+    if numberType == 'hex':
+        return to_hex_string(data)
+    if numberType == 'bin':
+        to_bin_string(data)
+    return to_hex_string(data)
+    
+def to_hex_string(data):
+    return " ".join("0x{:X}".format(x) for x in data)
+
+def to_bin_string(data):
+    return " ".join(format(x, '#08b') for x in data)
+
+
 class DPGCommandReadError(Exception):
     pass
 
@@ -58,6 +72,7 @@ class LinakDesk:
         self._posChangeCallback = None
         self._speedChangeCallback = None
         self._notificationHandler = NotificationHandler(self)
+        self._setting_callbacks = []
 
     @property
     def name(self):
@@ -176,10 +191,16 @@ class LinakDesk:
         #if currentCommand == None:
         
         if DPGCommand.is_valid_response(data) == False:
-            _LOGGER.debug("Received invalid response for command %s: %s", currentCommand, " ".join("0x{:X}".format(x) for x in data))
-            return 
+            ## Error: DPG_Control packets needs to have 0x01 in first byte
+            _LOGGER.debug("Received invalid response for command %s: %s", currentCommand, to_hex_string(data) )
+            return
 
-        _LOGGER.debug("Received response for command %s: %s", currentCommand, " ".join("0x{:X}".format(x) for x in data) )
+        if DPGCommand.is_valid_data(data) == False:
+            ## received confirmation without data
+            _LOGGER.debug("Received confirmation for command %s: %s", currentCommand, to_hex_string(data) )
+            return
+
+        _LOGGER.debug("Received response for command %s: %s", currentCommand, to_hex_string(data) )
         
         if currentCommand == DPGCommandType.PRODUCT_INFO:
             info = datatype.ProductInfo( data )
@@ -201,6 +222,7 @@ class LinakDesk:
         elif currentCommand == DPGCommandType.REMINDER_SETTING:
             self._reminder = datatype.ReminderSetting( data )
             _LOGGER.debug( "Reminder: %s", self._reminder )
+            self._call_setting_callbacks()
         elif currentCommand == DPGCommandType.DESK_OFFSET:
             self._desk_offset = datatype.DeskPosition.create(data)
             _LOGGER.debug( "Desk offset: %s", self._desk_offset )
@@ -223,7 +245,7 @@ class LinakDesk:
                 if logType == 135:
                     _LOGGER.debug( "New position: %s", logData[1] )
                 else:
-                    _LOGGER.debug( "Log: %s", " ".join("0x{:X}".format(x) for x in logData) )
+                    _LOGGER.debug( "Log: %s", to_hex_string(logData) )
             else:
                 _LOGGER.debug( "no log data" )
         else:
@@ -243,6 +265,16 @@ class LinakDesk:
 
     # ===============================================================
      
+    
+    def add_setting_callback(self, function):
+        self._setting_callbacks.append( function )
+        
+    def remove_setting_callback(self, function):
+        self._setting_callbacks.remove( function )
+        
+    def _call_setting_callbacks(self):
+        for call in self._setting_callbacks:
+            call()
     
     def initialize(self):
         _LOGGER.debug("Initializing the device")
@@ -341,6 +373,12 @@ class LinakDesk:
     def read_current_speed(self):
         return self.current_speed.raw
      
+    def read_reminder_values(self):
+        return self._reminder.getReminders()
+    
+    def reminder_settings(self):
+        return self._reminder
+    
     def read_favorite_number(self):
         with self._conn:
             caps = self._wait_for_variable("_capabilities")
@@ -394,6 +432,28 @@ class LinakDesk:
 #             _LOGGER.debug("Sending stopMoving")
             conn.send_control_command( ControlCommand.STOP_MOVING )
 
+    def read_reminder_state(self):
+        with self._conn as conn:
+            conn.send_dpg_read_command( DPGCommandType.REMINDER_SETTING )
+
+    def send_reminder_state(self):
+        with self._conn as conn:
+            value = self._reminder.raw_data()
+            _LOGGER.info("Sending reminder: %s %s %s", value, to_bin_string(value[0:1]), to_hex_string(value[1:]) )
+            conn.send_dpg_write_command( DPGCommandType.REMINDER_SETTING, value )
+
+    def selectReminder(self, number):
+        self._reminder.switchReminder(number)
+        self.send_reminder_state()
+            
+    def toggleCmInch(self, useCm):
+        self._reminder.setCmUnit(useCm)
+        self.send_reminder_state()
+            
+    def switchLightsReminder(self, state):
+        self._reminder.switchLights(state)
+        self.send_reminder_state()
+
     def _find_service(self, services, linakService):
         findUUID = linakService.uuid()
         for s in services:
@@ -438,7 +498,7 @@ class LinakDesk:
         ### convert string to byte array
         data = bytearray(data)
  
-        _LOGGER.debug("XXXXX Received error data: [%s]", " ".join("0x{:X}".format(x) for x in data) )
+        _LOGGER.debug("XXXXX Received error data: [%s]", to_hex_string(data) )
         
     def _handle_heigh_speed_notification(self, cHandle, data):
         """Handle Callback from a Bluetooth (GATT) reference."""
@@ -464,7 +524,7 @@ class LinakDesk:
         ### convert string to byte array
         
         data = bytearray(data)
-        _LOGGER.debug("Received reference data: [%s]", " ".join("0x{:X}".format(x) for x in data) )
+        _LOGGER.debug("Received reference data: [%s]", to_hex_string(data) )
         
     def processNotifications(self):
         with self._conn as conn:
