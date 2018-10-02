@@ -17,7 +17,8 @@ class DeskPosition:
     
     @classmethod
     def from_bytes(cls, data):
-        return cls(struct.unpack('<H', data[0:2])[0])
+        offset = struct.unpack('<H', data[0:2])[0]
+        return cls( offset )
 
     @classmethod
     def raw_from_cm(cls, cm):

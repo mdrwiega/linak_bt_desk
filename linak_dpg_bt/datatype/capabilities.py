@@ -27,21 +27,30 @@ class Capabilities:
             retString += "AU"
         else:
             retString += "au"
+            
         retString += " "
         if self.autoDown == True:
             retString += "AD"
         else:
             retString += "ad"
+            
         retString += " "
         if self.hasDisplay == True:
             retString += "HD"
         else:
             retString += "hd"
+            
         retString += " "
         if self.hasLight == True:
             retString += "HL"
         else:
             retString += "hl"
+            
+        retString += " "
+        if self.bleAllow == True:
+            retString += "BLE"
+        else:
+            retString += "ble"
         return retString
     
     def __str__(self):

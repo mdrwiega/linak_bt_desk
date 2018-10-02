@@ -68,11 +68,12 @@ class DPGCommand():
     @classmethod
     def is_valid_response(cls, data):
         if data[0] != 0x1:
-#             raise DPGCommandReadError('DPG_Control packets needs to have 0x01 in first byte.')
-            _LOGGER.debug('Error: DPG_Control packets needs to have 0x01 in first byte.')
             return False
+        return True
+
+    @classmethod
+    def is_valid_data(cls, data):
         if data[1] < 0x1:
-            _LOGGER.debug("These are not the data you're looking for - move along")
             return False 
         return True
     
