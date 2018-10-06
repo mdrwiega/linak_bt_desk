@@ -24,33 +24,15 @@ class Capabilities:
     def capString(self):
         retString = ""
         if self.autoUp == True:
-            retString += "AU"
-        else:
-            retString += "au"
-            
-        retString += " "
+            retString += "AutoUp"
         if self.autoDown == True:
-            retString += "AD"
-        else:
-            retString += "ad"
-            
-        retString += " "
+            retString += " AutoDown"
         if self.hasDisplay == True:
-            retString += "HD"
-        else:
-            retString += "hd"
-            
-        retString += " "
+            retString += " Display"
         if self.hasLight == True:
-            retString += "HL"
-        else:
-            retString += "hl"
-            
-        retString += " "
+            retString += " Light"
         if self.bleAllow == True:
-            retString += "BLE"
-        else:
-            retString += "ble"
+            retString += " BLE"
         return retString
     
     def __str__(self):
