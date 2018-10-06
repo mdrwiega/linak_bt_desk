@@ -23,7 +23,7 @@ _LOGGER = logging.getLogger(__name__)
 
 def to_hex_string(data):
     ## return codecs.encode(data, 'hex')
-    return " ".join("0x{:X}".format(x) for x in data)
+    return " ".join("0x{:02X}".format(x) for x in data)
 
 
 class BTLEConnection(btle.DefaultDelegate):

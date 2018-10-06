@@ -7,6 +7,13 @@ import struct
 
 
 
+def to_bin_string(data):
+    return " ".join( '0b{:08b}'.format(x) for x in data )
+
+def to_bin_string7(data):
+    return " ".join( '{:07b}'.format(x) for x in data )
+
+
 class ReminderSetting:
     
     REMINDER_MASK     = 0b0000011   ##  3
@@ -14,7 +21,7 @@ class ReminderSetting:
     IMPULSE_UP_MASK   = 0b0001000   ##  8
     IMPULSE_DOWN_MASK = 0b0010000   ## 16
     WAKE_MASK         = 0b0100000   ## 32
-    LIGHT_MASK        = 0b1000000   ## 64
+    LIGHT_MASK        = 0b1000000   ## 64        ## bit is used only for activating the lights
     
     
     def __init__(self, data):
@@ -66,11 +73,40 @@ class ReminderSetting:
             retString += " iu"
             
         if self.inchEnabled == True:
-            retString += " inch"
+            retString += " INCH"
         else:
-            retString += " cm"
+            retString += " CM"
             
         return retString
+    
+    def state(self):
+        flags =  self._getFlagsByte()
+        return to_bin_string7( [flags] )
+    
+    def getReminderByIndex(self, number):
+        if number == 1:
+            return self.r1
+        if number == 2:
+            return self.r2
+        if number == 3:
+            return self.r3
+        return None
+    
+    def currentReminder(self):
+        if self.reminder == 1:
+            return self.r1
+        if self.reminder == 2:
+            return self.r2
+        if self.reminder == 3:
+            return self.r3
+        return None
+    
+    def currentReminderInfo(self):
+        currReminder = self.currentReminder()
+        if currReminder == None:
+            return "None"
+        else:
+            return currReminder.info()
     
     def counter(self):
         return self.opCounter
@@ -100,7 +136,7 @@ class ReminderSetting:
         retList.append( self.r3 )
         return retList        
     
-    def getReminder(self):
+    def getReminderIndex(self):
         return self.reminder
     
     def switchReminder(self, state):
@@ -155,11 +191,11 @@ class ReminderSetting:
         
     def setLights(self, state):
         if state == True:
-            if self.reminder == 0:
-                self.switchReminder(1)
+#             if self.reminder == 0:
+#                 self.switchReminder(1)
             self.lightGuide = True
         else:
-            self.switchReminder(0) 
+#             self.switchReminder(0) 
             self.lightGuide = False
     
     def _getFlagsByte(self):
@@ -177,8 +213,9 @@ class ReminderSetting:
         return flags
     
     def __str__(self):
-        return "%s[%s %s %s %s %s %s, %s %s %s]" % (self.__class__.__name__,
-                                                    self.lightGuide, self.wake, self.impulseDown, self.impulseUp, self.inchEnabled, self.reminder,  
+        flags =  self._getFlagsByte()
+        return "%s[%s %s %s %s]" % (self.__class__.__name__,
+                                                    to_bin_string( [flags] ),
                                                     self.r1, self.r2, self.r3,
                                                 )
     
@@ -191,7 +228,7 @@ class Reminder:
         self.stand = data[1]
     
     def info(self):
-        retString = str(self.sit) + " / " + str(self.stand)
+        retString = str(self.sit) + "/" + str(self.stand)
         return retString
     
     def data(self):

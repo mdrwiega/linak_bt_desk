@@ -7,7 +7,37 @@ import math
 
 
 class DeskPosition:
+
+    def __init__(self, raw):
+        self._raw = raw
+
+    @property
+    def raw(self):
+        return self._raw
+
+    @property
+    def cm(self):
+        if self.raw == None:
+            return None
+        return round(self.raw / 100.0)
+#         return math.ceil(self.raw / 100.0)
+
+    @property
+    def human_cm(self):
+        if self.cm == None:
+            return None
+        return "%d cm" % self.cm
     
+    def bytes(self):
+        return self.bytes_from_raw( self.raw )
+    
+    def __str__(self):
+        return "%s[%s]" % (self.__class__.__name__, self.raw)
+    
+    
+    ## ======================================================
+
+
     @classmethod
     def create(cls, data):
         if data[2] != 1:
@@ -30,28 +60,6 @@ class DeskPosition:
 
     @classmethod
     def from_cm(cls, cm):
-        return cls(cls.raw_from_cm(cm))
-
-    def __init__(self, raw):
-        self._raw = raw
-
-    @property
-    def raw(self):
-        return self._raw
-
-    @property
-    def cm(self):
-        if self.raw == None:
-            return None
-        return round(self.raw / 100.0)
-#         return math.ceil(self.raw / 100.0)
-
-    @property
-    def human_cm(self):
-        if self.cm == None:
-            return None
-        return "%d cm" % self.cm
-    
-    def __str__(self):
-        return "%s[%s]" % (self.__class__.__name__, self.raw)
+        raw = cls.raw_from_cm(cm)
+        return cls(raw)
     

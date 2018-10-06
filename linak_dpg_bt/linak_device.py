@@ -12,6 +12,7 @@ import linak_dpg_bt.datatype as datatype
 from .connection import BTLEConnection
 from .desk_mover import DeskMover
 from .command import DPGCommandType, DPGCommand, ControlCommand, DirectionalCommand
+from linak_dpg_bt.datatype.desk_position import DeskPosition
 
 
 
@@ -27,10 +28,10 @@ def to_string(data, numberType):
     return to_hex_string(data)
     
 def to_hex_string(data):
-    return " ".join("0x{:X}".format(x) for x in data)
+    return " ".join("0x{:02X}".format(x) for x in data)
 
 def to_bin_string(data):
-    return " ".join(format(x, '#08b') for x in data)
+    return " ".join( '0b{:08b}'.format(x) for x in data )
 
 
 class DPGCommandReadError(Exception):
@@ -53,6 +54,10 @@ class NotificationHandler(Thread):
 
 
 class LinakDesk:
+    
+    CLIENT_ID = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17]
+    
+    
     def __init__(self, bdaddr):
         self._bdaddr = bdaddr
         self._conn = BTLEConnection(bdaddr)
@@ -73,6 +78,7 @@ class LinakDesk:
         self._speedChangeCallback = None
         self._notificationHandler = NotificationHandler(self)
         self._setting_callbacks = []
+        self._fav_callbacks = []
 
     @property
     def name(self):
@@ -179,6 +185,9 @@ class LinakDesk:
 
     def _with_desk_offset(self, value):
         return datatype.DeskPosition(value.raw + self.desk_offset.raw)
+    
+    def _without_desk_offset(self, value):
+        return datatype.DeskPosition(value.raw - self.desk_offset.raw)
 
     def _handle_dpg_notification(self, cHandle, data):
         """Handle Callback from a Bluetooth (GATT) request."""
@@ -272,7 +281,17 @@ class LinakDesk:
     def remove_setting_callback(self, function):
         self._setting_callbacks.remove( function )
         
+    def add_favorities_callback(self, function):
+        self._fav_callbacks.append( function )
+        
+    def remove_favorities_callback(self, function):
+        self._fav_callbacks.remove( function )
+        
     def _call_setting_callbacks(self):
+        for call in self._setting_callbacks:
+            call()
+            
+    def _call_fav_callbacks(self):
         for call in self._setting_callbacks:
             call()
     
@@ -324,30 +343,23 @@ class LinakDesk:
                 conn.subscribe_to_notification_enum(linak_service.Characteristic.SIX, self._handle_reference_notification)
                 conn.subscribe_to_notification_enum(linak_service.Characteristic.SEVEN, self._handle_reference_notification)
                 conn.subscribe_to_notification_enum(linak_service.Characteristic.EIGHT, self._handle_reference_notification)
+                
+                conn.subscribe_to_notification_enum(linak_service.Characteristic.SERVICE_CHANGED, self._handle_service_notification)
        
                 conn.send_dpg_read_command( DPGCommandType.USER_ID )
                 conn.send_dpg_read_command( DPGCommandType.PRODUCT_INFO )
                 conn.send_dpg_read_command( DPGCommandType.GET_SETUP )
                  
                 conn.send_dpg_read_command( DPGCommandType.GET_CAPABILITIES )
-                conn.send_dpg_read_command( DPGCommandType.REMINDER_SETTING )
+                self.read_reminder_state()
                 conn.send_dpg_read_command( DPGCommandType.DESK_OFFSET )
                                  
                 heightData = conn.read_characteristic_by_enum(linak_service.Characteristic.HEIGHT_SPEED)
                 self._handle_heigh_speed_notification( linak_service.Characteristic.HEIGHT_SPEED.handle(), heightData )
                  
-                userId = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
-                conn.send_dpg_write_command( DPGCommandType.USER_ID, userId )
+                conn.send_dpg_write_command( DPGCommandType.USER_ID, self.CLIENT_ID )
        
-                favNum = self.read_favorite_number()
-                if favNum >= 1:
-                    conn.send_dpg_read_command( DPGCommandType.GET_SET_MEMORY_POSITION_1 )
-                if favNum >= 2:
-                    conn.send_dpg_read_command( DPGCommandType.GET_SET_MEMORY_POSITION_2 )
-                if favNum >= 3:
-                    conn.send_dpg_read_command( DPGCommandType.GET_SET_MEMORY_POSITION_3 )
-                if favNum >= 4:
-                    conn.send_dpg_read_command( DPGCommandType.GET_SET_MEMORY_POSITION_4 )
+                self.read_favorities_state()
 
                 ## conn.send_dpg_read_command( DPGCommandType.GET_SET_REMINDER_TIME )
                 ## conn.send_dpg_read_command( DPGCommandType.GET_LOG_ENTRY )
@@ -379,6 +391,21 @@ class LinakDesk:
     def reminder_settings(self):
         return self._reminder
     
+    def favorities(self):
+        return [self._fav_position_1, self._fav_position_2, self._fav_position_3, self._fav_position_4]
+
+    def read_favorite_positions(self):
+        favNumber = self.read_favorite_number()
+        retList = []
+        for i in range(favNumber):
+            fav = self.favorite_position(i+1)
+            if fav.position != None:
+                favPos = self._with_desk_offset( fav.position )
+                retList.append( favPos.cm )
+            else:
+                retList.append(None)
+        return retList
+    
     def read_favorite_number(self):
         with self._conn:
             caps = self._wait_for_variable("_capabilities")
@@ -398,6 +425,13 @@ class LinakDesk:
             else:
                 retList.append(None)
         return retList
+
+    def set_favorite_position(self, favIndex, value):
+        newValue = DeskPosition.from_cm(value)
+        favPos = self._without_desk_offset( newValue )
+        fav = self.favorite_position(favIndex+1)
+        fav.position = favPos
+        _LOGGER.info("changed position %s %s %s", str(favIndex), str(value), favPos)
 
     def moveUp(self):
         ## custom: 71, 64 | 0
@@ -431,6 +465,11 @@ class LinakDesk:
         with self._conn as conn:
 #             _LOGGER.debug("Sending stopMoving")
             conn.send_control_command( ControlCommand.STOP_MOVING )
+            
+    ## after reeiving this command device's display should activate
+    def activate_display(self):
+        with self._conn as conn:
+            conn.send_control_command( ControlCommand.UNDEFINED )
 
     def read_reminder_state(self):
         with self._conn as conn:
@@ -439,8 +478,12 @@ class LinakDesk:
     def send_reminder_state(self):
         with self._conn as conn:
             value = self._reminder.raw_data()
-            _LOGGER.info("Sending reminder: %s %s %s", value, to_bin_string(value[0:1]), to_hex_string(value[1:]) )
+            _LOGGER.info("Sending reminder: %s %s %s", value, to_bin_string( value[0:1] ), to_hex_string(value[1:]) )
             conn.send_dpg_write_command( DPGCommandType.REMINDER_SETTING, value )
+            ## refresh device/display state
+            self.activate_display()    
+            ## wait for device to react
+            ## sleep(2)
 
     def selectReminder(self, number):
         self._reminder.switchReminder(number)
@@ -453,6 +496,51 @@ class LinakDesk:
     def switchLightsReminder(self, state):
         self._reminder.switchLights(state)
         self.send_reminder_state()
+
+    def read_favorities_state(self):
+        with self._conn as conn:
+            favNum = self.read_favorite_number()
+            if favNum >= 1:
+                conn.send_dpg_read_command( DPGCommandType.GET_SET_MEMORY_POSITION_1 )
+            if favNum >= 2:
+                conn.send_dpg_read_command( DPGCommandType.GET_SET_MEMORY_POSITION_2 )
+            if favNum >= 3:
+                conn.send_dpg_read_command( DPGCommandType.GET_SET_MEMORY_POSITION_3 )
+            if favNum >= 4:
+                conn.send_dpg_read_command( DPGCommandType.GET_SET_MEMORY_POSITION_4 )
+        self._call_fav_callbacks()
+    
+    def send_favorities_state(self):
+        favNum = self.read_favorite_number()
+        if favNum >= 1:
+            self._send_fav(1)
+        if favNum >= 2:
+            self._send_fav(2)
+        if favNum >= 3:
+            self._send_fav(3)
+        if favNum >= 4:
+            self._send_fav(4)
+        self._call_fav_callbacks()
+
+    def _send_fav(self, favNumber):
+        cmd = DPGCommandType.getMemoryPosition(favNumber)
+        if cmd == None:
+            raise RuntimeError("invalid command for fav: ", str(favNumber))
+        fav = self.favorite_position( favNumber )
+        if fav == None:
+            raise RuntimeError("invalid fav for number: ", str(favNumber))
+        pos = fav.getPosition()
+        with self._conn as conn:
+            value = None
+            if pos == None:
+                ## add 0 at beginning
+                value = bytes([0])
+            else:
+                value = pos.bytes()
+                ## add 1 at beginning
+                value = bytes([1]) + value
+            _LOGGER.info("Sending fav: %s %s %s %s", favNumber, value, to_bin_string( value ), to_hex_string( value ) )
+            conn.send_dpg_write_command( cmd, value )
 
     def _find_service(self, services, linakService):
         findUUID = linakService.uuid()
@@ -525,6 +613,12 @@ class LinakDesk:
         
         data = bytearray(data)
         _LOGGER.debug("Received reference data: [%s]", to_hex_string(data) )
+            
+    def _handle_service_notification(self, cHandle, data):
+        ### convert string to byte array
+        
+        data = bytearray(data)
+        _LOGGER.debug("Received service data: [%s]", to_hex_string(data) )
         
     def processNotifications(self):
         with self._conn as conn:

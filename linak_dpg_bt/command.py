@@ -53,6 +53,17 @@ class DPGCommandType(Enum):
                 return item
         return None
 
+    @classmethod
+    def getMemoryPosition(cls, number):
+        if number == 1:
+            return cls.GET_SET_MEMORY_POSITION_1
+        if number == 2:
+            return cls.GET_SET_MEMORY_POSITION_2
+        if number == 3:
+            return cls.GET_SET_MEMORY_POSITION_3
+        if number == 4:
+            return cls.GET_SET_MEMORY_POSITION_4
+        return None
 
 
 class DPGCommand():    
