@@ -238,15 +238,19 @@ class LinakDesk:
         elif currentCommand == DPGCommandType.GET_SET_MEMORY_POSITION_1:
             self._fav_position_1 = datatype.FavoritePosition(data)
             _LOGGER.debug( "Favorite 1: %s", self._fav_position_1 )
+            self._call_fav_callbacks(1)
         elif currentCommand == DPGCommandType.GET_SET_MEMORY_POSITION_2:
             self._fav_position_2 = datatype.FavoritePosition(data)
             _LOGGER.debug( "Favorite 2: %s", self._fav_position_2 )
+            self._call_fav_callbacks(2)
         elif currentCommand == DPGCommandType.GET_SET_MEMORY_POSITION_3:
             self._fav_position_3 = datatype.FavoritePosition(data)
             _LOGGER.debug( "Favorite 3: %s", self._fav_position_3 )
+            self._call_fav_callbacks(3)
         elif currentCommand == DPGCommandType.GET_SET_MEMORY_POSITION_4:
             self._fav_position_4 = datatype.FavoritePosition(data)
             _LOGGER.debug( "Favorite 4: %s", self._fav_position_4 )
+            self._call_fav_callbacks(4)
         elif currentCommand == DPGCommandType.GET_LOG_ENTRY:
             logData = data[2:]
             if len(logData) > 4:
@@ -291,9 +295,9 @@ class LinakDesk:
         for call in self._setting_callbacks:
             call()
             
-    def _call_fav_callbacks(self):
-        for call in self._setting_callbacks:
-            call()
+    def _call_fav_callbacks(self, favNumber):
+        for call in self._fav_callbacks:
+            call(favNumber)
     
     def initialize(self):
         _LOGGER.debug("Initializing the device")
@@ -427,11 +431,17 @@ class LinakDesk:
         return retList
 
     def set_favorite_position(self, favIndex, value):
-        newValue = DeskPosition.from_cm(value)
-        favPos = self._without_desk_offset( newValue )
-        fav = self.favorite_position(favIndex+1)
-        fav.position = favPos
-        _LOGGER.info("changed position %s %s %s", str(favIndex), str(value), favPos)
+        favNumber = favIndex+1
+        fav = self.favorite_position(favNumber)
+        if value==None:
+            fav.position = None
+            _LOGGER.info("changed position %s %s", str(favNumber), str(value))
+        else:
+            newValue = DeskPosition.from_cm(value)
+            favPos = self._without_desk_offset( newValue )
+            fav.position = favPos
+            _LOGGER.info("changed position %s %s %s", str(favNumber), str(value), favPos)
+        self._call_fav_callbacks(favNumber)
 
     def moveUp(self):
         ## custom: 71, 64 | 0
@@ -508,21 +518,20 @@ class LinakDesk:
                 conn.send_dpg_read_command( DPGCommandType.GET_SET_MEMORY_POSITION_3 )
             if favNum >= 4:
                 conn.send_dpg_read_command( DPGCommandType.GET_SET_MEMORY_POSITION_4 )
-        self._call_fav_callbacks()
     
     def send_favorities_state(self):
         favNum = self.read_favorite_number()
         if favNum >= 1:
-            self._send_fav(1)
+            self.send_fav(1)
         if favNum >= 2:
-            self._send_fav(2)
+            self.send_fav(2)
         if favNum >= 3:
-            self._send_fav(3)
+            self.send_fav(3)
         if favNum >= 4:
-            self._send_fav(4)
-        self._call_fav_callbacks()
+            self.send_fav(4)
 
-    def _send_fav(self, favNumber):
+    def send_fav(self, favIndex):
+        favNumber = favIndex+1
         cmd = DPGCommandType.getMemoryPosition(favNumber)
         if cmd == None:
             raise RuntimeError("invalid command for fav: ", str(favNumber))
