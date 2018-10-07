@@ -2,13 +2,21 @@
 #
 #
 
+import struct
+
 from .desk_position import DeskPosition
 
 
 class FavoritePosition:
     
     def __init__(self, data):
-        self.position = DeskPosition.create(data)
+        if data[2] != 1:
+            ## not set
+            self.position = None
+            self.opCounter = struct.unpack('<I', data[3:])[0]
+        else:
+            self.position = DeskPosition.create(data)
+            self.opCounter = struct.unpack('<I', data[5:])[0]
         
     def isValid(self):
         return (self.position != None)
@@ -18,6 +26,9 @@ class FavoritePosition:
     
     def getPosition(self):
         return self.position
+    
+    def counter(self):
+        return self.opCounter
     
     @property
     def raw(self):

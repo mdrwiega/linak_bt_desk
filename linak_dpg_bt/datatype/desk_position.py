@@ -20,7 +20,14 @@ class DeskPosition:
         if self.raw == None:
             return None
         return round(self.raw / 100.0)
-#         return math.ceil(self.raw / 100.0)
+    
+    def cmDouble(self):
+        if self.raw == None:
+            return None
+        return self.raw / 100.0
+
+    def setFromCm(self, cmValue):
+        self._raw = int( cmValue * 100.0 )
 
     @property
     def human_cm(self):

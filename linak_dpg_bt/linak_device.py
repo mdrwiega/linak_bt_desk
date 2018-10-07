@@ -384,7 +384,7 @@ class LinakDesk:
 
     def read_current_position(self):
         currPos = self.current_height_with_offset
-        return currPos.cm
+        return currPos.cmDouble()
     
     def read_current_speed(self):
         return self.current_speed.raw
@@ -475,7 +475,22 @@ class LinakDesk:
         with self._conn as conn:
 #             _LOGGER.debug("Sending stopMoving")
             conn.send_control_command( ControlCommand.STOP_MOVING )
-            
+
+    def send_desk_height(self, cmValue):
+        ## height = offset + piston
+        ## offset = height - piston
+        ## piston = height - offset
+        piston = self.current_height
+        newOffset = cmValue - piston.cmDouble()
+        self._desk_offset.setFromCm( newOffset )
+        
+        with self._conn as conn:
+            value = self._desk_offset.bytes()
+            ## add 1 at beginning
+            value = bytes([1]) + value
+            _LOGGER.info("Sending offset: %s %s", value, to_hex_string(value) )
+            conn.send_dpg_write_command( DPGCommandType.DESK_OFFSET, value )
+
     ## after reeiving this command device's display should activate
     def activate_display(self):
         with self._conn as conn:
