@@ -87,7 +87,10 @@ class CommandThread(Thread):
             if self.hFunction == None:
                 _LOGGER.warning( "no handle function defined" )
                 break
-            self.hFunction()
+            ret = self.hFunction()
+            if ret == False:
+                _LOGGER.warning( "handler thread termination" )
+                break
             self.stopEvent.wait( self.INTERVAL )
         _LOGGER.debug( "thread terminated" )
 
@@ -112,6 +115,18 @@ class DeskMoverThread():
         self.spawnThread( self._handle_moveDown )
         
     @synchronized    
+    def moveToTop(self):
+        _LOGGER.info( "moving top" )
+        self.stopMoving()
+        self.spawnThread( self._handle_moveTop )
+        
+    @synchronized    
+    def moveToBottom(self):
+        _LOGGER.info( "moving bottom" )
+        self.stopMoving()
+        self.spawnThread( self._handle_moveBottom )
+        
+    @synchronized    
     def moveToFav(self, favIndex):
         _LOGGER.info( "moving to fav %s" % (favIndex) )
         self.stopMoving()
@@ -125,22 +140,6 @@ class DeskMoverThread():
             _LOGGER.info( "stopping thread %s" % (currentThread) )
             currentThread.stop()
         _LOGGER.info( "stopping device" )
-        self._handle_stop()
-
-    def _handle_moveUp(self):
-        self.device.moveUp()
-
-    def _handle_moveDown(self):
-        self.device.moveDown()
-
-    def _handle_moveToFav(self, favIndex):
-        self.device.moveToFav(favIndex)
-        if self.device.current_speed.raw < 1:
-            ## stopped moving
-            _LOGGER.info( "device stopped" )
-            self.stopMoving()
-
-    def _handle_stop(self):
         self.device.stopMoving()
 
     @synchronized("thread_lock")
@@ -154,3 +153,27 @@ class DeskMoverThread():
         tmpThread = self.thread
         self.thread = None
         return tmpThread
+
+    def _handle_moveUp(self):
+        return self.device.moveUp()
+
+    def _handle_moveDown(self):
+        return self.device.moveDown()
+        
+    def _handle_moveTop(self):
+        return self.device.moveToTop()
+        
+    def _handle_moveBottom(self):
+        return self.device.moveToBottom()
+
+    def _handle_moveToFav(self, favIndex):
+        ret = self.device.moveToFav(favIndex)
+        if ret == False:
+            return False
+        if self.device.current_speed.raw < 1:
+            ## stopped moving
+            _LOGGER.info( "device stopped" )
+            self.stopMoving()
+            return False
+        return True
+

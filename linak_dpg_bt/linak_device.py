@@ -448,28 +448,35 @@ class LinakDesk:
         ## standard: 71, 0
 #         _LOGGER.debug("Sending moveUp")
         with self._conn as conn:
-            conn.send_control_command( ControlCommand.MOVE_1_UP )
+            return conn.send_control_command( ControlCommand.MOVE_1_UP )
      
     def moveDown(self):
         ## custom: 70, 64 | 0
         ## standard: 70, 0
 #         _LOGGER.debug("Sending moveDown")
         with self._conn as conn:
-            conn.send_control_command( ControlCommand.MOVE_1_DOWN )
+            return conn.send_control_command( ControlCommand.MOVE_1_DOWN )
+
+    def moveToTop(self):
+        ##return self.moveTo(32766)     ## 0x7FFE - maximal possible value to work
+        return self.moveTo(30000)       ## 3 meters up
+    
+    def moveToBottom(self):
+        return self.moveTo(0)
 
     def moveToFav(self, favIndex):
         fav = self.favorite_position(favIndex+1)
         if fav.position == None:
-            return
+            return False
         pos = fav.position.raw
-        self.moveTo(pos)
+        return self.moveTo(pos)
      
     def moveTo(self, position):
         if position == None:
-            return
+            return False
         with self._conn as conn:
             command = DirectionalCommand( position )
-            conn.send_directional_command( command )
+            return conn.send_directional_command( command )
      
     def stopMoving(self):
         with self._conn as conn:
@@ -620,7 +627,8 @@ class LinakDesk:
  
         self._height_speed = datatype.HeightSpeed.from_bytes( data )
         pos = self.current_height_with_offset.raw
-        _LOGGER.debug("Received height: %s data: %s", pos, self._height_speed)
+        raw = self.current_height.raw
+        _LOGGER.debug("Received height: %s %s data: %s", pos, raw, self._height_speed)
         
         for hand in _LOGGER.handlers:
             hand.flush()

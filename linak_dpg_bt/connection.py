@@ -149,11 +149,11 @@ class BTLEConnection(btle.DefaultDelegate):
     
     @synchronized
     def send_control_command(self, controlCommand):
-        self._send_command_single(linak_service.Characteristic.CONTROL, controlCommand, False)
+        return self._send_command_single(linak_service.Characteristic.CONTROL, controlCommand, False)
     
     @synchronized
     def send_directional_command(self, directionalCommand):
-        self._send_command_single(linak_service.Characteristic.CTRL1, directionalCommand)
+        return self._send_command_single(linak_service.Characteristic.CTRL1, directionalCommand)
     
     def _send_command_repeated(self, characteristicEnum, commandObj, with_response = True):
         self.currentCommand = commandObj
@@ -175,7 +175,7 @@ class BTLEConnection(btle.DefaultDelegate):
         self.currentCommand = commandObj
         value = commandObj.wrap_command()
         _LOGGER.debug("Sending %s: %s to %s w_resp=%s", commandObj, to_hex_string(value), characteristicEnum, with_response)
-        self._write_to_characteristic_raw( characteristicEnum.handle(), value, with_response=with_response)
+        return self._write_to_characteristic_raw( characteristicEnum.handle(), value, with_response=with_response)
 
     @synchronized
     def write_to_characteristic_by_enum(self, characteristicEnum, value, with_response = True):
@@ -190,7 +190,8 @@ class BTLEConnection(btle.DefaultDelegate):
             succeed = self._conn.waitForNotifications(timeout)
             if succeed == False:
                 _LOGGER.error("Waiting for notifications for %s FAILED", timeout)
-#             _LOGGER.debug("Waiting done")
+                return False
+        return True
     
     def subscribe_to_notification_enum(self, characteristicEnum, callback):
         _LOGGER.debug("Subscribing to %s", characteristicEnum)
