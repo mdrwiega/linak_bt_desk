@@ -262,7 +262,7 @@ class LinakDesk:
             else:
                 _LOGGER.debug( "no log data" )
         else:
-            _LOGGER.debug( "Command not handled" )
+            _LOGGER.debug( "Command not handled: %r", currentCommand )
 
     def _move_to_raw(self, raw_value):
         with self._conn as conn:
@@ -306,6 +306,7 @@ class LinakDesk:
                 """ We need to query for name before doing anything, without it device doesnt respond """
 
                 peripheral = conn._conn
+                ##self.print_services()
                 services = peripheral.getServices()
                 
                 #### there is problem with services -- it arrives in random order
@@ -349,11 +350,11 @@ class LinakDesk:
                 conn.subscribe_to_notification_enum(linak_service.Characteristic.EIGHT, self._handle_reference_notification)
                 
                 conn.subscribe_to_notification_enum(linak_service.Characteristic.SERVICE_CHANGED, self._handle_service_notification)
-       
+                
                 conn.send_dpg_read_command( DPGCommandType.USER_ID )
                 conn.send_dpg_read_command( DPGCommandType.PRODUCT_INFO )
                 conn.send_dpg_read_command( DPGCommandType.GET_SETUP )
-                 
+                
                 conn.send_dpg_read_command( DPGCommandType.GET_CAPABILITIES )
                 self.read_reminder_state()
                 conn.send_dpg_read_command( DPGCommandType.DESK_OFFSET )
@@ -373,7 +374,7 @@ class LinakDesk:
             _LOGGER.debug("Initialization done")
             
         except BaseException as e:
-            _LOGGER.exception( "e" )
+            _LOGGER.exception( "Initialization failed" )
             raise e
      
     def set_position_change_callback(self, callback):

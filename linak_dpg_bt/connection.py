@@ -61,7 +61,7 @@ class BTLEConnection(btle.DefaultDelegate):
                 connected = True
                 break
             except btle.BTLEException as ex:
-                _LOGGER.debug("Unable to connect to the device %s, retrying: %s", self._mac, ex)
+                _LOGGER.debug("Unable to connect to the device %s, reason: %s (%s)", self._mac, ex.message, ex.code)
                 
         if connected == False:
             _LOGGER.error("Connection to %s failed", self._mac)
@@ -156,16 +156,22 @@ class BTLEConnection(btle.DefaultDelegate):
         return self._send_command_single(linak_service.Characteristic.CTRL1, directionalCommand)
     
     def _send_command_repeated(self, characteristicEnum, commandObj, with_response = True):
-        self.currentCommand = commandObj
         ##_LOGGER.debug("Waiting for notifications for %s", timeout)
-        for rep in range(0, 8):
+        for rep in range(0, 3):
             self._send_command_single(characteristicEnum, commandObj, with_response)
             ##sleep(0.2)
             if self.currentCommand == None:
                 ## command handled -- do not resent again
                 return True
-            else:
-                _LOGGER.debug("Did not receive response: %s", rep)
+            
+            _LOGGER.debug("Did not receive response: %s", rep)
+            
+            #### workaround when notifications does not work
+            ##handleValue = characteristicEnum.handle()
+            ##dataValue = self.read_characteristic_by_enum( characteristicEnum )
+            ##self.handleNotification( handleValue, dataValue )
+            ##return True
+        
         ### here notification callback is already handled
         ##_LOGGER.debug("Command handled")
         return False
@@ -179,17 +185,17 @@ class BTLEConnection(btle.DefaultDelegate):
 
     @synchronized
     def write_to_characteristic_by_enum(self, characteristicEnum, value, with_response = True):
-        _LOGGER.debug("Writing value %s to %s w_resp=%s", to_hex_string(value), characteristicEnum, with_response)
+        _LOGGER.debug("Writing value %s:%s to %s w_resp=%s", type(value), to_hex_string(value), characteristicEnum, with_response)
         self._write_to_characteristic_raw( characteristicEnum.handle(), value, with_response=with_response )
             
-    def _write_to_characteristic_raw(self,handle, value, with_response = True):
+    def _write_to_characteristic_raw(self, handle, value, with_response = True):
         self._conn.writeCharacteristic( handle, value, withResponse=with_response)
         if with_response == True:
             timeout = max(constants.DEFAULT_TIMEOUT, 1)
 #             _LOGGER.debug("Wait for notifications for %s", timeout)
             succeed = self._conn.waitForNotifications(timeout)
             if succeed == False:
-                _LOGGER.error("Waiting for notifications for %s FAILED", timeout)
+                _LOGGER.error("Waiting for notifications for %ss FAILED", timeout)
                 return False
         return True
     
