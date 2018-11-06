@@ -229,7 +229,7 @@ class LinakDesk:
             ##_LOGGER.debug( "Reminder: %s", self._reminder )
             pass
         elif currentCommand == DPGCommandType.REMINDER_SETTING:
-            self._reminder = datatype.ReminderSetting( data )
+            self._reminder = datatype.ReminderSetting.create( data )
             _LOGGER.debug( "Reminder: %s", self._reminder )
             self._call_setting_callbacks()
         elif currentCommand == DPGCommandType.DESK_OFFSET:

@@ -219,6 +219,12 @@ class ReminderSetting:
                                                     self.r1, self.r2, self.r3,
                                                 )
     
+    @classmethod
+    def create(cls, data):
+        if len(data) < 8:
+            return None
+        return ReminderSetting(data)
+    
     
     
 class Reminder:
