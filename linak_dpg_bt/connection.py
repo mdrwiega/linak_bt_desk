@@ -185,7 +185,7 @@ class BTLEConnection(btle.DefaultDelegate):
 
     @synchronized
     def write_to_characteristic_by_enum(self, characteristicEnum, value, with_response = True):
-        _LOGGER.debug("Writing value %s:%s to %s w_resp=%s", type(value), to_hex_string(value), characteristicEnum, with_response)
+        _LOGGER.debug("Writing value %s to %s w_resp=%s", to_hex_string(value), characteristicEnum, with_response)
         self._write_to_characteristic_raw( characteristicEnum.handle(), value, with_response=with_response )
             
     def _write_to_characteristic_raw(self, handle, value, with_response = True):
