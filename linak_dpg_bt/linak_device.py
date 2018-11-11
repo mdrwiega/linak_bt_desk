@@ -357,7 +357,7 @@ class LinakDesk:
                 
                 conn.send_dpg_read_command( DPGCommandType.PRODUCT_INFO )
                 
-                conn.send_dpg_read_command( DPGCommandType.GET_CAPABILITIES )
+                self.read_capabilities()
                 self.read_reminder_state()
                 conn.send_dpg_read_command( DPGCommandType.DESK_OFFSET )
                 
@@ -511,6 +511,10 @@ class LinakDesk:
         with self._conn as conn:
             conn.send_control_command( ControlCommand.UNDEFINED )
 
+    def read_capabilities(self):
+        with self._conn as conn:
+            conn.send_dpg_read_command( DPGCommandType.GET_CAPABILITIES )
+            
     def read_reminder_state(self):
         with self._conn as conn:
             conn.send_dpg_read_command( DPGCommandType.REMINDER_SETTING )
