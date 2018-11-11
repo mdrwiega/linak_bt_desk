@@ -165,12 +165,6 @@ class BTLEConnection(btle.DefaultDelegate):
                 return True
             
             _LOGGER.debug("Did not receive response: %s", rep)
-            
-            #### workaround when notifications does not work
-            ##handleValue = characteristicEnum.handle()
-            ##dataValue = self.read_characteristic_by_enum( characteristicEnum )
-            ##self.handleNotification( handleValue, dataValue )
-            ##return True
         
         ### here notification callback is already handled
         ##_LOGGER.debug("Command handled")
@@ -182,12 +176,22 @@ class BTLEConnection(btle.DefaultDelegate):
         value = commandObj.wrap_command()
         _LOGGER.debug("Sending %s: %s to %s w_resp=%s", commandObj, to_hex_string(value), characteristicEnum, with_response)
         return self._write_to_characteristic_raw( characteristicEnum.handle(), value, with_response=with_response)
-
+    
     @synchronized
-    def write_to_characteristic_by_enum(self, characteristicEnum, value, with_response = True):
-        _LOGGER.debug("Writing value %s to %s w_resp=%s", to_hex_string(value), characteristicEnum, with_response)
-        self._write_to_characteristic_raw( characteristicEnum.handle(), value, with_response=with_response )
-            
+    def subscribe_to_notification_enum(self, characteristicEnum, callback):
+        _LOGGER.debug("Subscribing to %s", characteristicEnum)
+        value = struct.pack('BB', 1, 0)
+        
+#         with_response=True
+        with_response=False
+        
+        _LOGGER.debug("Writing value %s:%s to %s w_resp=%s", type(value), to_hex_string(value), characteristicEnum, with_response)
+        notificationHandle = characteristicEnum.handle() + 1                                ## +1 is required!
+        self._write_to_characteristic_raw( notificationHandle, value, with_response )
+                
+        notification_resp_handle = characteristicEnum.handle()
+        self.set_callback(notification_resp_handle, callback)
+
     def _write_to_characteristic_raw(self, handle, value, with_response = True):
         self._conn.writeCharacteristic( handle, value, withResponse=with_response)
         if with_response == True:
@@ -195,16 +199,8 @@ class BTLEConnection(btle.DefaultDelegate):
 #             _LOGGER.debug("Wait for notifications for %s", timeout)
             succeed = self._conn.waitForNotifications(timeout)
             if succeed == False:
-                _LOGGER.error("Waiting for notifications for %ss FAILED", timeout)
                 return False
         return True
-    
-    def subscribe_to_notification_enum(self, characteristicEnum, callback):
-        _LOGGER.debug("Subscribing to %s", characteristicEnum)
-        value = struct.pack('BB', 1, 0)
-        self.write_to_characteristic_by_enum(characteristicEnum, value, False)
-        notification_resp_handle = characteristicEnum.handle()
-        self.set_callback(notification_resp_handle, callback)
 
     @synchronized
     def read_characteristic_by_enum(self, characteristicEnum):
@@ -214,6 +210,19 @@ class BTLEConnection(btle.DefaultDelegate):
 #             _LOGGER.debug("This: %s %s" % (self, self._conn) )
             handleValue = characteristicEnum.handle()
             retVal = self._conn.readCharacteristic(handleValue)
+            bytesVal = bytearray(retVal)
+            _LOGGER.debug("Got value [%s]", to_hex_string(bytesVal) )
+            return retVal
+        except btle.BTLEException as ex:
+            _LOGGER.error("Got exception from bluepy while making a request: %s", ex)
+            raise ex
+        
+    @synchronized
+    def read_characteristic_by_handle(self, characteristicHandle):
+        """Read a GATT Characteristic in sync mode."""
+        try:
+            _LOGGER.debug("Reading char: %s", hex(characteristicHandle))
+            retVal = self._conn.readCharacteristic(characteristicHandle)
             bytesVal = bytearray(retVal)
             _LOGGER.debug("Got value [%s]", to_hex_string(bytesVal) )
             return retVal

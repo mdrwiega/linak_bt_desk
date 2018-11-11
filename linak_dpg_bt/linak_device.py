@@ -319,7 +319,19 @@ class LinakDesk:
                 self._find_service(services, linak_service.Service.CONTROL)
                 self._find_service(services, linak_service.Service.REFERENCE_INPUT)
                 self._find_service(services, linak_service.Service.REFERENCE_OUTPUT)
+                   
+                conn.subscribe_to_notification_enum(linak_service.Characteristic.HEIGHT_SPEED, self._handle_heigh_speed_notification)
+                conn.subscribe_to_notification_enum(linak_service.Characteristic.TWO, self._handle_reference_notification)
+                conn.subscribe_to_notification_enum(linak_service.Characteristic.THREE, self._handle_reference_notification)
+                conn.subscribe_to_notification_enum(linak_service.Characteristic.FOUR, self._handle_reference_notification)
+                conn.subscribe_to_notification_enum(linak_service.Characteristic.FIVE, self._handle_reference_notification)
+                conn.subscribe_to_notification_enum(linak_service.Characteristic.SIX, self._handle_reference_notification)
+                conn.subscribe_to_notification_enum(linak_service.Characteristic.SEVEN, self._handle_reference_notification)
+                conn.subscribe_to_notification_enum(linak_service.Characteristic.EIGHT, self._handle_reference_notification)
                 
+                maskData = conn.read_characteristic_by_enum(linak_service.Characteristic.MASK)
+                self._mask = datatype.Mask( maskData )
+                _LOGGER.debug("Received mask: %s", self._mask)
                 
                 deviceName = conn.read_characteristic_by_enum(linak_service.Characteristic.DEVICE_NAME)
                 self._name = deviceName.decode("utf-8")
@@ -332,42 +344,35 @@ class LinakDesk:
                 model = conn.read_characteristic_by_enum(linak_service.Characteristic.MODEL_NUMBER)
                 self._model = model.decode("utf-8")
                 _LOGGER.debug("Received model: %s", self._model)
-
+                
                 conn.subscribe_to_notification_enum(linak_service.Characteristic.DPG, self._handle_dpg_notification)
                 conn.subscribe_to_notification_enum(linak_service.Characteristic.ERROR, self._handle_error_notification)
-                   
-                maskData = conn.read_characteristic_by_enum(linak_service.Characteristic.MASK)
-                self._mask = datatype.Mask( maskData )
-                _LOGGER.debug("Received mask: %s", self._mask)
-                   
-                conn.subscribe_to_notification_enum(linak_service.Characteristic.HEIGHT_SPEED, self._handle_heigh_speed_notification)
-                conn.subscribe_to_notification_enum(linak_service.Characteristic.TWO, self._handle_reference_notification)
-                conn.subscribe_to_notification_enum(linak_service.Characteristic.THREE, self._handle_reference_notification)
-                conn.subscribe_to_notification_enum(linak_service.Characteristic.FOUR, self._handle_reference_notification)
-                conn.subscribe_to_notification_enum(linak_service.Characteristic.FIVE, self._handle_reference_notification)
-                conn.subscribe_to_notification_enum(linak_service.Characteristic.SIX, self._handle_reference_notification)
-                conn.subscribe_to_notification_enum(linak_service.Characteristic.SEVEN, self._handle_reference_notification)
-                conn.subscribe_to_notification_enum(linak_service.Characteristic.EIGHT, self._handle_reference_notification)
-                
                 conn.subscribe_to_notification_enum(linak_service.Characteristic.SERVICE_CHANGED, self._handle_service_notification)
                 
                 conn.send_dpg_read_command( DPGCommandType.USER_ID )
+                
+                response = conn.send_dpg_read_command( DPGCommandType.GET_SETUP )
+                if response == False:
+                    return False
+                
                 conn.send_dpg_read_command( DPGCommandType.PRODUCT_INFO )
-                conn.send_dpg_read_command( DPGCommandType.GET_SETUP )
                 
                 conn.send_dpg_read_command( DPGCommandType.GET_CAPABILITIES )
                 self.read_reminder_state()
                 conn.send_dpg_read_command( DPGCommandType.DESK_OFFSET )
+                
+                conn.send_dpg_write_command( DPGCommandType.USER_ID, self.CLIENT_ID )
                                  
                 heightData = conn.read_characteristic_by_enum(linak_service.Characteristic.HEIGHT_SPEED)
                 self._handle_heigh_speed_notification( linak_service.Characteristic.HEIGHT_SPEED.handle(), heightData )
-                 
-                conn.send_dpg_write_command( DPGCommandType.USER_ID, self.CLIENT_ID )
        
                 self.read_favorities_state()
 
                 ## conn.send_dpg_read_command( DPGCommandType.GET_SET_REMINDER_TIME )
                 ## conn.send_dpg_read_command( DPGCommandType.GET_LOG_ENTRY )
+                
+                heightNotification = conn.read_characteristic_by_handle(linak_service.Characteristic.HEIGHT_SPEED.handle() + 1)
+                _LOGGER.debug("Notification status: %s", heightNotification)
     
             self._notificationHandler.start()
     
@@ -376,6 +381,8 @@ class LinakDesk:
         except BaseException as e:
             _LOGGER.exception( "Initialization failed" )
             raise e
+        
+        return True
      
     def set_position_change_callback(self, callback):
         self._posChangeCallback = callback
@@ -588,16 +595,18 @@ class LinakDesk:
             peripheral = conn._conn
             serviceList = peripheral.getServices()
             for s in serviceList:
-                _LOGGER.debug("Service: %s[%s]", s.uuid, s.uuid.getCommonName())
+                sUuidString = linak_service.Service.printUUID(s.uuid)
+                _LOGGER.debug("" )
+                _LOGGER.debug("Service: %s", sUuidString)
                 charsList = s.getCharacteristics()
                 for ch in charsList:
                     charString = linak_service.Characteristic.printCharacteristic(ch)
-                    _LOGGER.debug("Char: %s", charString)
+                    _LOGGER.debug("%s", charString)
 
                 descList = s.getDescriptors()
                 for desc in descList:
-    #                 _LOGGER.debug("Desc: %s: %s", desc, desc.read())
-                    _LOGGER.debug("Desc: %s", desc)
+                    descUuidString = linak_service.Characteristic.printUUID(desc.uuid)
+                    _LOGGER.debug("Description: %s %s", descUuidString, hex(desc.handle) )
                       
 #             _LOGGER.debug("Characteristics:")
 #             charsList = peripheral.getCharacteristics()

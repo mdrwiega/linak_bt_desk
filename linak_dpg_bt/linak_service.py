@@ -42,6 +42,24 @@ class Service(Enum):
             if item.uuid() == strval:
                 return item
         return None
+    
+    @classmethod
+    def findByUUID(cls, uuid):
+        return cls.find( uuid )
+ 
+    @staticmethod
+    def printUUID(uuid):
+        uuidStr = str(uuid)
+        cName = ""
+        commonName = uuid.getCommonName()
+        if commonName != uuidStr:
+            cName = commonName
+        else:
+            charEnum = Service.findByUUID(uuid)
+            if charEnum != None:
+                cName = charEnum.name
+        return "%s[%s]" % ( cName, uuidStr )
+    
 
 
 class CharacteristicEnumMeta(EnumMeta):
@@ -137,18 +155,30 @@ class Characteristic(Enum):
                 return item
         return None
 
-    @classmethod
-    def printCharacteristic(cls, characteristic):
+    @staticmethod
+    def printCharacteristic(characteristic):
         val = "-rns-"
         if characteristic.supportsRead():
 #             val = characteristic.read().decode("utf-8") 
             val = characteristic.read() 
-        return "Char: %s[%s] %s %s %s" % (
-                    characteristic.uuid, 
-                    characteristic.uuid.getCommonName(), 
+        uuidStr = Characteristic.printUUID(characteristic.uuid)
+        return "Char: %s %s %s %s" % (
+                    uuidStr, 
                     hex(characteristic.getHandle()), 
                     characteristic.propertiesToString(),
                     val
                 )
  
-
+    @staticmethod
+    def printUUID(uuid):
+        uuidStr = str(uuid)
+        cName = ""
+        commonName = uuid.getCommonName()
+        if commonName != uuidStr:
+            cName = commonName
+        else:
+            charEnum = Characteristic.findByUUID(uuid)
+            if charEnum != None:
+                cName = charEnum.name
+        return "%s[%s]" % ( cName, uuidStr )
+    
