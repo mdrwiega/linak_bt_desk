@@ -175,22 +175,30 @@ class BTLEConnection(btle.DefaultDelegate):
         self.currentCommand = commandObj
         value = commandObj.wrap_command()
         _LOGGER.debug("Sending %s: %s to %s w_resp=%s", commandObj, to_hex_string(value), characteristicEnum, with_response)
-        return self._write_to_characteristic_raw( characteristicEnum.handle(), value, with_response=with_response)
+        return self._write_to_characteristic( characteristicEnum.handle(), value, with_response=with_response)
     
     @synchronized
     def subscribe_to_notification_enum(self, characteristicEnum, callback):
         _LOGGER.debug("Subscribing to %s", characteristicEnum)
         value = struct.pack('BB', 1, 0)
         
-#         with_response=True
         with_response=False
         
         _LOGGER.debug("Writing value %s:%s to %s w_resp=%s", type(value), to_hex_string(value), characteristicEnum, with_response)
         notificationHandle = characteristicEnum.handle() + 1                                ## +1 is required!
-        self._write_to_characteristic_raw( notificationHandle, value, with_response )
+        self._write_to_characteristic( notificationHandle, value, with_response )
                 
         notification_resp_handle = characteristicEnum.handle()
         self.set_callback(notification_resp_handle, callback)
+
+    def _write_to_characteristic(self, handle, value, with_response = True):
+        succeed = self._write_to_characteristic_raw(handle, value, with_response)
+        if succeed == False:
+            #### try receive notification by reading data
+            self._conn.readCharacteristic( handle )
+            timeout = max(constants.DEFAULT_TIMEOUT, 1)
+            succeed = self._conn.waitForNotifications(timeout)
+        return succeed
 
     def _write_to_characteristic_raw(self, handle, value, with_response = True):
         self._conn.writeCharacteristic( handle, value, withResponse=with_response)
