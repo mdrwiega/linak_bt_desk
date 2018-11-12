@@ -195,6 +195,7 @@ class BTLEConnection(btle.DefaultDelegate):
         succeed = self._write_to_characteristic_raw(handle, value, with_response)
         if succeed == False:
             #### try receive notification by reading data
+            _LOGGER.debug("Receive notification timeout - trying to fetch notification")
             self._conn.readCharacteristic( handle )
             timeout = max(constants.DEFAULT_TIMEOUT, 1)
             succeed = self._conn.waitForNotifications(timeout)
