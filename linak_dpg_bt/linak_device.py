@@ -6,6 +6,8 @@ import logging
 from time import sleep
 from threading import Thread
 
+from bluepy import btle
+
 import linak_dpg_bt.linak_service as linak_service
 import linak_dpg_bt.datatype as datatype
  
@@ -47,10 +49,23 @@ class NotificationHandler(Thread):
         Thread.__init__(self)
         self.desk = desk
         self.daemon = True
-        
+        self.work = True
+    
+    def stop(self):
+        self.work = False
+    
     def run(self):
-        while True:
-            self.desk.processNotifications()
+        while self.work == True:
+            try:
+                self.desk.processNotifications()
+                sleep(0.001)                      ## prevents starving other thread
+            except btle.BTLEException:
+                _LOGGER.exception("exception occurred")
+                sleep(2)
+                _LOGGER.debug("retrying after exception")
+            except ConnectionRefusedError:
+                _LOGGER.exception("exception occurred")
+                sleep(2)
 
 
 class LinakDesk:
@@ -142,7 +157,7 @@ class LinakDesk:
         return self._wait_for_variable('_height_speed')
 
     def read_dpg_data(self):
-        self.initialize()
+        self._connect()
 
     def __str__(self):
         return "[%s] Desk offset: %s, name: %s\nFav1: %s, Fav2: %s Height with offset: %s" % (
@@ -300,90 +315,97 @@ class LinakDesk:
             call(favNumber)
     
     def initialize(self):
-        _LOGGER.debug("Initializing the device")
         try:
-            with self._conn as conn:
-                """ We need to query for name before doing anything, without it device doesnt respond """
-
-                peripheral = conn._conn
-                ##self.print_services()
-                services = peripheral.getServices()
-                
-                #### there is problem with services -- it arrives in random order
-                ##for s in services:
-                ##    self._handle_discovered_service(s)
-    
-                ### check if required services exist
-                self._find_service(services, linak_service.Service.GENERIC_ACCESS)
-                self._find_service(services, linak_service.Service.DPG)
-                self._find_service(services, linak_service.Service.CONTROL)
-                self._find_service(services, linak_service.Service.REFERENCE_INPUT)
-                self._find_service(services, linak_service.Service.REFERENCE_OUTPUT)
-                   
-                conn.subscribe_to_notification_enum(linak_service.Characteristic.HEIGHT_SPEED, self._handle_heigh_speed_notification)
-                conn.subscribe_to_notification_enum(linak_service.Characteristic.TWO, self._handle_reference_notification)
-                conn.subscribe_to_notification_enum(linak_service.Characteristic.THREE, self._handle_reference_notification)
-                conn.subscribe_to_notification_enum(linak_service.Characteristic.FOUR, self._handle_reference_notification)
-                conn.subscribe_to_notification_enum(linak_service.Characteristic.FIVE, self._handle_reference_notification)
-                conn.subscribe_to_notification_enum(linak_service.Characteristic.SIX, self._handle_reference_notification)
-                conn.subscribe_to_notification_enum(linak_service.Characteristic.SEVEN, self._handle_reference_notification)
-                conn.subscribe_to_notification_enum(linak_service.Characteristic.EIGHT, self._handle_reference_notification)
-                
-                maskData = conn.read_characteristic_by_enum(linak_service.Characteristic.MASK)
-                self._mask = datatype.Mask( maskData )
-                _LOGGER.debug("Received mask: %s", self._mask)
-                
-                deviceName = conn.read_characteristic_by_enum(linak_service.Characteristic.DEVICE_NAME)
-                self._name = deviceName.decode("utf-8")
-                _LOGGER.debug("Received name: %s", self._name)
-                
-                manufacturer = conn.read_characteristic_by_enum(linak_service.Characteristic.MANUFACTURER)
-                self._manu = manufacturer.decode("utf-8")
-                _LOGGER.debug("Received manufacturer: %s", self._manu)
-                
-                model = conn.read_characteristic_by_enum(linak_service.Characteristic.MODEL_NUMBER)
-                self._model = model.decode("utf-8")
-                _LOGGER.debug("Received model: %s", self._model)
-                
-                conn.subscribe_to_notification_enum(linak_service.Characteristic.DPG, self._handle_dpg_notification)
-                conn.subscribe_to_notification_enum(linak_service.Characteristic.ERROR, self._handle_error_notification)
-                conn.subscribe_to_notification_enum(linak_service.Characteristic.SERVICE_CHANGED, self._handle_service_notification)
-                
-                conn.send_dpg_read_command( DPGCommandType.USER_ID )
-                
-                response = conn.send_dpg_read_command( DPGCommandType.GET_SETUP )
-                if response == False:
-                    return False
-                
-                conn.send_dpg_read_command( DPGCommandType.PRODUCT_INFO )
-                
-                self.read_capabilities()
-                self.read_reminder_state()
-                conn.send_dpg_read_command( DPGCommandType.DESK_OFFSET )
-                
-                conn.send_dpg_write_command( DPGCommandType.USER_ID, self.CLIENT_ID )
-                                 
-                heightData = conn.read_characteristic_by_enum(linak_service.Characteristic.HEIGHT_SPEED)
-                self._handle_heigh_speed_notification( linak_service.Characteristic.HEIGHT_SPEED.handle(), heightData )
-       
-                self.read_favorities_state()
-
-                ## conn.send_dpg_read_command( DPGCommandType.GET_SET_REMINDER_TIME )
-                ## conn.send_dpg_read_command( DPGCommandType.GET_LOG_ENTRY )
-                
-                heightNotification = conn.read_characteristic_by_handle(linak_service.Characteristic.HEIGHT_SPEED.handle() + 1)
-                _LOGGER.debug("Notification status: %s", heightNotification)
-    
-            self._notificationHandler.start()
-    
-            _LOGGER.debug("Initialization done")
-            
+            self._connect()
+            return True
         except BaseException as e:
-            _LOGGER.exception( "Initialization failed" )
-            raise e
-        
-        return True
-     
+            _LOGGER.error( "Initialization failed: %s %s", type(e), e )
+            return False
+    
+    def _connect(self):
+        _LOGGER.debug("Initializing the device")
+        with self._conn as conn:
+            """ We need to query for name before doing anything, without it device doesnt respond """
+
+            peripheral = conn._conn
+            ##self.print_services()
+            services = peripheral.getServices()
+            
+            #### there is problem with services -- it arrives in random order
+            ##for s in services:
+            ##    self._handle_discovered_service(s)
+
+            ### check if required services exist
+            self._find_service(services, linak_service.Service.GENERIC_ACCESS)
+            self._find_service(services, linak_service.Service.DPG)
+            self._find_service(services, linak_service.Service.CONTROL)
+            self._find_service(services, linak_service.Service.REFERENCE_INPUT)
+            self._find_service(services, linak_service.Service.REFERENCE_OUTPUT)
+               
+            conn.subscribe_to_notification_enum(linak_service.Characteristic.HEIGHT_SPEED, self._handle_heigh_speed_notification)
+            conn.subscribe_to_notification_enum(linak_service.Characteristic.TWO, self._handle_reference_notification)
+            conn.subscribe_to_notification_enum(linak_service.Characteristic.THREE, self._handle_reference_notification)
+            conn.subscribe_to_notification_enum(linak_service.Characteristic.FOUR, self._handle_reference_notification)
+            conn.subscribe_to_notification_enum(linak_service.Characteristic.FIVE, self._handle_reference_notification)
+            conn.subscribe_to_notification_enum(linak_service.Characteristic.SIX, self._handle_reference_notification)
+            conn.subscribe_to_notification_enum(linak_service.Characteristic.SEVEN, self._handle_reference_notification)
+            conn.subscribe_to_notification_enum(linak_service.Characteristic.EIGHT, self._handle_reference_notification)
+            
+            maskData = conn.read_characteristic_by_enum(linak_service.Characteristic.MASK)
+            self._mask = datatype.Mask( maskData )
+            _LOGGER.debug("Received mask: %s", self._mask)
+            
+            deviceName = conn.read_characteristic_by_enum(linak_service.Characteristic.DEVICE_NAME)
+            self._name = deviceName.decode("utf-8")
+            _LOGGER.debug("Received name: %s", self._name)
+            
+            manufacturer = conn.read_characteristic_by_enum(linak_service.Characteristic.MANUFACTURER)
+            self._manu = manufacturer.decode("utf-8")
+            _LOGGER.debug("Received manufacturer: %s", self._manu)
+            
+            model = conn.read_characteristic_by_enum(linak_service.Characteristic.MODEL_NUMBER)
+            self._model = model.decode("utf-8")
+            _LOGGER.debug("Received model: %s", self._model)
+            
+            conn.subscribe_to_notification_enum(linak_service.Characteristic.DPG, self._handle_dpg_notification)
+            conn.subscribe_to_notification_enum(linak_service.Characteristic.ERROR, self._handle_error_notification)
+            conn.subscribe_to_notification_enum(linak_service.Characteristic.SERVICE_CHANGED, self._handle_service_notification)
+            
+            conn.send_dpg_read_command( DPGCommandType.USER_ID )
+            
+            response = conn.send_dpg_read_command( DPGCommandType.GET_SETUP )
+            if response == False:
+                return False
+            
+            conn.send_dpg_read_command( DPGCommandType.PRODUCT_INFO )
+            
+            self.read_capabilities()
+            self.read_reminder_state()
+            conn.send_dpg_read_command( DPGCommandType.DESK_OFFSET )
+            
+            conn.send_dpg_write_command( DPGCommandType.USER_ID, self.CLIENT_ID )
+                             
+            heightData = conn.read_characteristic_by_enum(linak_service.Characteristic.HEIGHT_SPEED)
+            self._handle_heigh_speed_notification( linak_service.Characteristic.HEIGHT_SPEED.handle(), heightData )
+   
+            self.read_favorities_state()
+
+            ## conn.send_dpg_read_command( DPGCommandType.GET_SET_REMINDER_TIME )
+            ## conn.send_dpg_read_command( DPGCommandType.GET_LOG_ENTRY )
+            
+            heightNotification = conn.read_characteristic_by_handle(linak_service.Characteristic.HEIGHT_SPEED.handle() + 1)
+            _LOGGER.debug("Notification status: %s", heightNotification)
+
+        self._notificationHandler.start()
+
+        _LOGGER.debug("Initialization done")
+    
+    def disconnect(self):
+        self._notificationHandler.stop()
+        self._notificationHandler.join()
+        self._notificationHandler = None
+        self._conn.disconnect()
+    
     def set_position_change_callback(self, callback):
         self._posChangeCallback = callback
         
@@ -668,7 +690,6 @@ class LinakDesk:
         
     def processNotifications(self):
         with self._conn as conn:
-            while True:
-                conn.processNotifications()
-                sleep(0.001)                      ## prevents starving other thread
+            conn.processNotifications()
+                
         

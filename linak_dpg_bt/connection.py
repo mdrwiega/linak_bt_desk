@@ -7,6 +7,7 @@ Handles Connection duties (reconnecting etc.) transparently.
 
 import logging
 import struct
+from time import sleep
 
 from bluepy import btle
 
@@ -24,6 +25,19 @@ _LOGGER = logging.getLogger(__name__)
 def to_hex_string(data):
     ## return codecs.encode(data, 'hex')
     return " ".join("0x{:02X}".format(x) for x in data)
+
+
+def DisconnectOnException(func):
+    return func
+#     def wrapper(*args):
+#         try:
+#             return func(*args)
+#         except btle.BTLEException as e:
+#             _LOGGER.error("bluetooth exception occurred: %s", e)
+#             objInstance = args[0]
+#             objInstance.disconnect()
+#             raise
+#     return wrapper
 
 
 class BTLEConnection(btle.DefaultDelegate):
@@ -51,6 +65,26 @@ class BTLEConnection(btle.DefaultDelegate):
         if self._conn != None:
             return self
         
+        self.connect()
+        
+        return self
+
+    @synchronized
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        ### do not disconnect -- otherwise notification callbacks will be lost
+        pass
+
+    @synchronized
+    def __del__(self):
+        #TODO: make disconnection on CTRL+C
+        _LOGGER.debug("Deleting object")
+        self.disconnect()
+
+    @synchronized
+    @DisconnectOnException
+    def connect(self):
+        self.disconnect()
+        
         _LOGGER.debug("Trying to connect to %s", self._mac)
         connected = False
         for _ in range(0,2):
@@ -62,28 +96,26 @@ class BTLEConnection(btle.DefaultDelegate):
                 break
             except btle.BTLEException as ex:
                 _LOGGER.debug("Unable to connect to the device %s, reason: %s (%s)", self._mac, ex.message, ex.code)
+                self.disconnect()
+                sleep(1)
                 
         if connected == False:
             _LOGGER.error("Connection to %s failed", self._mac)
             raise ConnectionRefusedError("Connection to %s failed" % self._mac)
 
         _LOGGER.debug("Connected to %s", self._mac)
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        ### do not disconnect -- otherwise notification callbacks will be lost
-        pass
-        ## self.disconnect()
-
-    def __del__(self):
-        #TODO: make disconnection on CTRL+C
-        self.disconnect()
-
+    
     @synchronized
+    @DisconnectOnException
     def disconnect(self):
         if self._conn:
+            _LOGGER.debug("disconnecting")
             self._conn.disconnect()
             self._conn = None
+
+    @synchronized
+    def isConnected(self):
+        return (self._conn != None)
 
     def handleNotification(self, handle, data):
         """Handle Callback from a Bluetooth (GATT) request."""
@@ -108,6 +140,7 @@ class BTLEConnection(btle.DefaultDelegate):
         self._callbacks[handle] = function
 
     @synchronized
+    @DisconnectOnException
     def make_request(self, handle, value, timeout=constants.DEFAULT_TIMEOUT, with_response=True):
         """Write a GATT Command without callback - not utf-8."""
         try:
@@ -138,20 +171,24 @@ class BTLEConnection(btle.DefaultDelegate):
         return oldCommand
         
     @synchronized
+    @DisconnectOnException
     def send_dpg_read_command(self, dpgCommandType):
         dpgCommand = DPGCommand.get_read_command(dpgCommandType)
         return self._send_command_repeated(linak_service.Characteristic.DPG, dpgCommand)
     
     @synchronized
+    @DisconnectOnException
     def send_dpg_write_command(self, dpgCommandType, data):
         dpgCommand = DPGCommand.get_write_command(dpgCommandType, data)
         return self._send_command_repeated(linak_service.Characteristic.DPG, dpgCommand)
     
     @synchronized
+    @DisconnectOnException
     def send_control_command(self, controlCommand):
         return self._send_command_single(linak_service.Characteristic.CONTROL, controlCommand, False)
     
     @synchronized
+    @DisconnectOnException
     def send_directional_command(self, directionalCommand):
         return self._send_command_single(linak_service.Characteristic.CTRL1, directionalCommand)
     
@@ -178,6 +215,7 @@ class BTLEConnection(btle.DefaultDelegate):
         return self._write_to_characteristic( characteristicEnum.handle(), value, with_response=with_response)
     
     @synchronized
+    @DisconnectOnException
     def subscribe_to_notification_enum(self, characteristicEnum, callback):
         _LOGGER.debug("Subscribing to %s", characteristicEnum)
         value = struct.pack('BB', 1, 0)
@@ -212,6 +250,7 @@ class BTLEConnection(btle.DefaultDelegate):
         return True
 
     @synchronized
+    @DisconnectOnException
     def read_characteristic_by_enum(self, characteristicEnum):
         """Read a GATT Characteristic in sync mode."""
         try:
@@ -227,6 +266,7 @@ class BTLEConnection(btle.DefaultDelegate):
             raise ex
         
     @synchronized
+    @DisconnectOnException
     def read_characteristic_by_handle(self, characteristicHandle):
         """Read a GATT Characteristic in sync mode."""
         try:
@@ -240,6 +280,7 @@ class BTLEConnection(btle.DefaultDelegate):
             raise ex
 
     @synchronized
+    @DisconnectOnException
     def get_characteristic_by_enum(self, characteristicEnum):
         """Read a GATT Characteristic."""
         try:
@@ -257,7 +298,10 @@ class BTLEConnection(btle.DefaultDelegate):
             raise ex
 
     @synchronized
+    @DisconnectOnException
     def processNotifications(self):
+        if self.isConnected() == False:
+            return
         ##_LOGGER.error("Starting processing")
         self._conn.waitForNotifications(0.5)
         ##_LOGGER.error("Leaving processing")
