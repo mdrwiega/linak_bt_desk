@@ -28,16 +28,15 @@ def to_hex_string(data):
 
 
 def DisconnectOnException(func):
-    return func
-#     def wrapper(*args):
-#         try:
-#             return func(*args)
-#         except btle.BTLEException as e:
-#             _LOGGER.error("bluetooth exception occurred: %s", e)
-#             objInstance = args[0]
-#             objInstance.disconnect()
-#             raise
-#     return wrapper
+    def wrapper(*args):
+        try:
+            return func(*args)
+        except btle.BTLEException as e:
+            _LOGGER.error("bluetooth exception occurred: %s %s", type(e), e)
+            objInstance = args[0]
+            objInstance.disconnect()
+            raise
+    return wrapper
 
 
 class BTLEConnection(btle.DefaultDelegate):
@@ -51,6 +50,7 @@ class BTLEConnection(btle.DefaultDelegate):
         self._mac = mac
         self._callbacks = {}
         self.currentCommand = None
+        self._disconnectedCallback = None
 #         self.dpgQueue = CommandQueue(self)
 
 
@@ -96,7 +96,6 @@ class BTLEConnection(btle.DefaultDelegate):
                 break
             except btle.BTLEException as ex:
                 _LOGGER.debug("Unable to connect to the device %s, reason: %s (%s)", self._mac, ex.message, ex.code)
-                self.disconnect()
                 sleep(1)
                 
         if connected == False:
@@ -112,10 +111,15 @@ class BTLEConnection(btle.DefaultDelegate):
             _LOGGER.debug("disconnecting")
             self._conn.disconnect()
             self._conn = None
+            if self._disconnectedCallback != None:
+                self._disconnectedCallback()
 
     @synchronized
     def isConnected(self):
         return (self._conn != None)
+
+    def set_disconnected_callback(self, callback):
+        self._disconnectedCallback = callback
 
     def handleNotification(self, handle, data):
         """Handle Callback from a Bluetooth (GATT) request."""

@@ -59,13 +59,12 @@ class NotificationHandler(Thread):
             try:
                 self.desk.processNotifications()
                 sleep(0.001)                      ## prevents starving other thread
-            except btle.BTLEException:
-                _LOGGER.exception("exception occurred")
-                sleep(2)
-                _LOGGER.debug("retrying after exception")
-            except ConnectionRefusedError:
-                _LOGGER.exception("exception occurred")
-                sleep(2)
+            except btle.BTLEException as e:
+                _LOGGER.error("exception occurred: %s %s", type(e), e)
+                break
+            except ConnectionRefusedError as e:
+                _LOGGER.error("exception occurred: %s %s", type(e), e)
+                break
 
 
 class LinakDesk:
@@ -401,6 +400,7 @@ class LinakDesk:
         _LOGGER.debug("Initialization done")
     
     def disconnect(self):
+        _LOGGER.debug("disconnecting device")
         self._notificationHandler.stop()
         self._notificationHandler.join()
         self._notificationHandler = None
@@ -411,6 +411,9 @@ class LinakDesk:
         
     def set_speed_change_callback(self, callback):
         self._speedChangeCallback = callback
+
+    def set_disconnected_callback(self, callback):
+        self._conn.set_disconnected_callback( callback )
 
     def read_current_position(self):
         currPos = self.current_height_with_offset
