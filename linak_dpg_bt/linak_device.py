@@ -400,10 +400,10 @@ class LinakDesk:
         _LOGGER.debug("Initialization done")
     
     def disconnect(self):
-        _LOGGER.debug("disconnecting device")
-        self._notificationHandler.stop()
-        self._notificationHandler.join()
-        self._notificationHandler = None
+        if self._notificationHandler != None:
+            self._notificationHandler.stop()
+            self._notificationHandler.join()
+            self._notificationHandler = None
         self._conn.disconnect()
     
     def set_position_change_callback(self, callback):
