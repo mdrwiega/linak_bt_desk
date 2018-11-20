@@ -313,6 +313,11 @@ class LinakDesk:
         for call in self._fav_callbacks:
             call(favNumber)
     
+    def is_connected(self):
+        if self._conn == None:
+            return False
+        return self._conn.isConnected()
+    
     def initialize(self):
         try:
             self._connect()
