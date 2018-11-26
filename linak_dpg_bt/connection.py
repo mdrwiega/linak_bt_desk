@@ -8,6 +8,7 @@ Handles Connection duties (reconnecting etc.) transparently.
 import logging
 import struct
 from time import sleep
+from functools import wraps
 
 from bluepy import btle
 
@@ -28,6 +29,7 @@ def to_hex_string(data):
 
 
 def DisconnectOnException(func):
+    @wraps(func)
     def wrapper(*args):
         try:
             return func(*args)
