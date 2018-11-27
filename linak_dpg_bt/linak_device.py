@@ -15,7 +15,7 @@ from .connection import BTLEConnection
 from .desk_mover import DeskMover
 from .command import DPGCommandType, DPGCommand, ControlCommand, DirectionalCommand
 from linak_dpg_bt.datatype.desk_position import DeskPosition
-
+from .threadcounter import getThreadName
 
 
 _LOGGER = logging.getLogger(__name__)
@@ -45,8 +45,12 @@ class WrongFavoriteNumber(Exception):
 
 
 class NotificationHandler(Thread):
-    def __init__(self, desk):
-        Thread.__init__(self)
+
+    def __init__(self, desk, namePrefix=None):
+        if namePrefix is None:
+            namePrefix = "NotifHndlr"
+        threadName = getThreadName(namePrefix)
+        Thread.__init__(self, name=threadName)
         self.desk = desk
         self.daemon = True
         self.work = True

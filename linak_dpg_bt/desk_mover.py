@@ -17,6 +17,8 @@ from .datatype.height_speed import HeightSpeed
 
 from .synchronized import synchronized
 
+from .threadcounter import getThreadName
+
 
 
 _LOGGER = logging.getLogger(__name__)
@@ -66,12 +68,14 @@ class DeskMover:
 
 
 class CommandThread(Thread):
+    """Call passed callable in separate thread until stop requested."""
     
     INTERVAL = 0.3
     
     
-    def __init__(self, hFunction):
-        super(CommandThread, self).__init__(target = self._thread_loop)
+    def __init__(self, hFunction, namePrefix=None):
+        threadName = getThreadName(namePrefix)
+        super(CommandThread, self).__init__(target=self._thread_loop, name=threadName)
         self.daemon = True
         self.hFunction = hFunction
         self.stopEvent = Event()
@@ -93,7 +97,6 @@ class CommandThread(Thread):
                 break
             self.stopEvent.wait( self.INTERVAL )
         _LOGGER.debug( "thread terminated" )
-
 
 
 class DeskMoverThread():
@@ -144,7 +147,7 @@ class DeskMoverThread():
 
     @synchronized("thread_lock")
     def spawnThread(self, handler):
-        self.thread = CommandThread( handler )
+        self.thread = CommandThread( handler, namePrefix="DeskMover" )
         self.thread.start()
         _LOGGER.info( "new thread spawned %s" % (self.thread) )
     
