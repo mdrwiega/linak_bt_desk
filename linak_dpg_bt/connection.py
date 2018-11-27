@@ -35,8 +35,8 @@ def DisconnectOnException(func):
             return func(*args)
         except btle.BTLEException as e:
             _LOGGER.error("bluetooth exception occurred: %s %s", type(e), e)
-            objInstance = args[0]
-            objInstance.disconnect()
+            connectionObj = args[0]
+            connectionObj.disconnect()
             raise
     return wrapper
 
@@ -54,7 +54,7 @@ class BTLEConnection(btle.DefaultDelegate):
         self.currentCommand = None
         self._disconnectedCallback = None
 #         self.dpgQueue = CommandQueue(self)
-
+        _LOGGER.debug("Constructed object: %r", self)
 
     @synchronized
     def __enter__(self):
@@ -79,7 +79,7 @@ class BTLEConnection(btle.DefaultDelegate):
     @synchronized
     def __del__(self):
         #TODO: make disconnection on CTRL+C
-        _LOGGER.debug("Deleting object")
+        _LOGGER.debug("Deleting object: %r", self)
         self.disconnect()
 
     @synchronized
