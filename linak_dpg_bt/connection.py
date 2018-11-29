@@ -29,6 +29,8 @@ def to_hex_string(data):
 
 
 def DisconnectOnException(func):
+    """Decorator calling 'disconnect()' on BTLE exception."""
+    
     @wraps(func)
     def wrapper(*args):
         try:
@@ -54,7 +56,7 @@ class BTLEConnection(btle.DefaultDelegate):
         self.currentCommand = None
         self._disconnectedCallback = None
 #         self.dpgQueue = CommandQueue(self)
-        _LOGGER.debug("Constructed object: %r", self)
+        _LOGGER.debug("Constructed %s object: %r", self.__class__.__name__, self)
 
     @synchronized
     def __enter__(self):
@@ -79,7 +81,7 @@ class BTLEConnection(btle.DefaultDelegate):
     @synchronized
     def __del__(self):
         #TODO: make disconnection on CTRL+C
-        _LOGGER.debug("Deleting object: %r", self)
+        _LOGGER.debug("Deleting %s object: %r", self.__class__.__name__, self)
         self.disconnect()
 
     @synchronized
@@ -157,7 +159,7 @@ class BTLEConnection(btle.DefaultDelegate):
             self._conn.writeCharacteristic(handle, value, withResponse=with_response)
             if timeout:
                 _LOGGER.debug("Waiting for notifications for %s", timeout)
-                self._conn.waitForNotifications(timeout)
+                self._waitForNotifications(timeout)
         except btle.BTLEException as ex:
             _LOGGER.error("Got exception from bluepy while making a request: %s", ex)
             raise ex
@@ -214,7 +216,7 @@ class BTLEConnection(btle.DefaultDelegate):
         return False
                 
     ### if with_response = True then exception will be raised in case of problems
-    def _send_command_single(self, characteristicEnum, commandObj, with_response = True):
+    def _send_command_single(self, characteristicEnum, commandObj, with_response=True):
         self.currentCommand = commandObj
         value = commandObj.wrap_command()
         _LOGGER.debug("Sending %s: %s to %s w_resp=%s", commandObj, to_hex_string(value), characteristicEnum, with_response)
@@ -235,25 +237,41 @@ class BTLEConnection(btle.DefaultDelegate):
         notification_resp_handle = characteristicEnum.handle()
         self.set_callback(notification_resp_handle, callback)
 
-    def _write_to_characteristic(self, handle, value, with_response = True):
+    def _write_to_characteristic(self, handle, value, with_response=True):
         succeed = self._write_to_characteristic_raw(handle, value, with_response)
-        if succeed == False:
-            #### try receive notification by reading data
-            _LOGGER.debug("Receive notification timeout - trying to fetch notification")
-            self._conn.readCharacteristic( handle )
-            timeout = max(constants.DEFAULT_TIMEOUT, 1)
-            succeed = self._conn.waitForNotifications(timeout)
-        return succeed
+        if succeed == True:
+            return succeed
+        return self._pull_notifications()
 
     def _write_to_characteristic_raw(self, handle, value, with_response = True):
         self._conn.writeCharacteristic( handle, value, withResponse=with_response)
         if with_response == True:
             timeout = max(constants.DEFAULT_TIMEOUT, 1)
 #             _LOGGER.debug("Wait for notifications for %s", timeout)
-            succeed = self._conn.waitForNotifications(timeout)
-            if succeed == False:
-                return False
+            return self._waitForNotifications(timeout)
         return True
+
+    def _pull_notifications(self):
+        """
+        Force receiving notifications.
+        
+        This is workaround for case of not coming (missing) notifications -- just read something from device.
+        """
+        _LOGGER.debug("Receive notification timeout - trying to pull notification")
+        handle = linak_service.Characteristic.DEVICE_NAME.handle()
+        self._conn.readCharacteristic( handle )               ## device name
+        timeout = max(constants.DEFAULT_TIMEOUT, 1)
+        self._waitForNotifications(timeout)
+        return True
+
+    def _is_characteristic_readable(self, handle):
+        #TODO: load all characteristics at connection time and cache Characteristic objects
+        charList = self._conn.getCharacteristics( startHnd=handle, endHnd=handle )
+        if len(charList) != 1:
+            _LOGGER.warning("could not get characteristic")
+            return True
+        char = charList[0]
+        return char.supportsRead()
 
     @synchronized
     @DisconnectOnException
@@ -307,8 +325,12 @@ class BTLEConnection(btle.DefaultDelegate):
     @DisconnectOnException
     def processNotifications(self):
         if self.isConnected() == False:
-            return
+            return False
         ##_LOGGER.error("Starting processing")
-        self._conn.waitForNotifications(0.5)
+        self._waitForNotifications(0.5)
         ##_LOGGER.error("Leaving processing")
+        return True
+
+    def _waitForNotifications(self, timeout):
+        return self._conn.waitForNotifications( timeout )
 

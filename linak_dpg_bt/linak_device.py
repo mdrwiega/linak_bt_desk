@@ -61,8 +61,11 @@ class NotificationHandler(Thread):
     def run(self):
         while self.work == True:
             try:
-                self.desk.processNotifications()
-                sleep(0.001)                      ## prevents starving other thread
+                connected = self.desk.processNotifications()
+                if connected:
+                    sleep(0.001)                      ## prevents starving other thread
+                else:
+                    sleep(0.5)                        ## not connected -- sleep 0.5s  
             except btle.BTLEException as e:
                 _LOGGER.error("exception occurred: %s %s", type(e), e)
                 break
@@ -97,6 +100,10 @@ class LinakDesk:
         self._notificationHandler = NotificationHandler(self)
         self._setting_callbacks = []
         self._fav_callbacks = []
+        _LOGGER.debug("Constructed %s object: %r", self.__class__.__name__, self)
+
+    def __del__(self):
+        _LOGGER.debug("Deleting %s object: %r", self.__class__.__name__, self)
 
     @property
     def name(self):
@@ -701,7 +708,5 @@ class LinakDesk:
         _LOGGER.debug("Received service data: [%s]", to_hex_string(data) )
         
     def processNotifications(self):
-        with self._conn as conn:
-            conn.processNotifications()
+        return self._conn.processNotifications()
                 
-        
