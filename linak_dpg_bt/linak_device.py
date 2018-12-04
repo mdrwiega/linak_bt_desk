@@ -21,7 +21,6 @@ from .threadcounter import getThreadName
 _LOGGER = logging.getLogger(__name__)
 
 
-
 def to_string(data, numberType):
     if numberType == 'hex':
         return to_hex_string(data)
@@ -51,6 +50,7 @@ class NotificationHandler(Thread):
             namePrefix = "NotifHndlr"
         threadName = getThreadName(namePrefix)
         Thread.__init__(self, name=threadName)
+        self.logger = _LOGGER.getChild(self.__class__.__name__)
         self.desk = desk
         self.daemon = True
         self.work = True
@@ -67,10 +67,10 @@ class NotificationHandler(Thread):
                 else:
                     sleep(0.5)                        ## not connected -- sleep 0.5s  
             except btle.BTLEException as e:
-                _LOGGER.error("exception occurred: %s %s", type(e), e)
+                self.logger.error("exception occurred: %s %s", type(e), e)
                 break
             except ConnectionRefusedError as e:
-                _LOGGER.error("exception occurred: %s %s", type(e), e)
+                self.logger.error("exception occurred: %s %s", type(e), e)
                 break
 
 
@@ -80,6 +80,7 @@ class LinakDesk:
     
     
     def __init__(self, bdaddr):
+        self.logger = _LOGGER.getChild(self.__class__.__name__)
         self._bdaddr = bdaddr
         self._conn = BTLEConnection(bdaddr)
 
@@ -100,10 +101,10 @@ class LinakDesk:
         self._notificationHandler = NotificationHandler(self)
         self._setting_callbacks = []
         self._fav_callbacks = []
-        _LOGGER.debug("Constructed %s object: %r", self.__class__.__name__, self)
+        self.logger.debug("Constructed %s object: %r", self.__class__.__name__, self)
 
     def __del__(self):
-        _LOGGER.debug("Deleting %s object: %r", self.__class__.__name__, self)
+        self.logger.debug("Deleting %s object: %r", self.__class__.__name__, self)
 
     @property
     def name(self):
@@ -216,7 +217,7 @@ class LinakDesk:
 
     def _handle_dpg_notification(self, cHandle, data):
         """Handle Callback from a Bluetooth (GATT) request."""
-        ##_LOGGER.debug("Received notification from the device..")
+        ##self.logger.debug("Received notification from the device..")
         
 #         ### convert string to byte array, required for Python2
 #         data = bytearray(data)
@@ -226,68 +227,68 @@ class LinakDesk:
         
         if DPGCommand.is_valid_response(data) == False:
             ## Error: DPG_Control packets needs to have 0x01 in first byte
-            _LOGGER.debug("Received invalid response for command %s: %s", currentCommand, to_hex_string(data) )
+            self.logger.debug("Received invalid response for command %s: %s", currentCommand, to_hex_string(data) )
             return
 
         if DPGCommand.is_valid_data(data) == False:
             ## received confirmation without data
-            _LOGGER.debug("Received confirmation for command %s: %s", currentCommand, to_hex_string(data) )
+            self.logger.debug("Received confirmation for command %s: %s", currentCommand, to_hex_string(data) )
             return
 
-        _LOGGER.debug("Received response for command %s: %s", currentCommand, to_hex_string(data) )
+        self.logger.debug("Received response for command %s: %s", currentCommand, to_hex_string(data) )
         
         if currentCommand == DPGCommandType.PRODUCT_INFO:
             info = datatype.ProductInfo( data )
-            _LOGGER.debug("Product info: %s", info)
+            self.logger.debug("Product info: %s", info)
         elif currentCommand == DPGCommandType.GET_SETUP:
             ## do nothing
             pass
         elif currentCommand == DPGCommandType.USER_ID:
             uId = datatype.UserId( data )
-            _LOGGER.debug( "User id: %s", uId )
+            self.logger.debug( "User id: %s", uId )
             self._userType = uId.type
         elif currentCommand == DPGCommandType.GET_CAPABILITIES:
             self._capabilities = datatype.Capabilities( data )
-            _LOGGER.debug( "Caps: %s", self._capabilities )
+            self.logger.debug( "Caps: %s", self._capabilities )
         elif currentCommand == DPGCommandType.GET_SET_REMINDER_TIME:
             ##self._reminder = datatype.ReminderSetting( data )
-            ##_LOGGER.debug( "Reminder: %s", self._reminder )
+            ##self.logger.debug( "Reminder: %s", self._reminder )
             pass
         elif currentCommand == DPGCommandType.REMINDER_SETTING:
             self._reminder = datatype.ReminderSetting.create( data )
-            _LOGGER.debug( "Reminder: %s", self._reminder )
+            self.logger.debug( "Reminder: %s", self._reminder )
             self._call_setting_callbacks()
         elif currentCommand == DPGCommandType.DESK_OFFSET:
             self._desk_offset = datatype.DeskPosition.create(data)
-            _LOGGER.debug( "Desk offset: %s", self._desk_offset )
+            self.logger.debug( "Desk offset: %s", self._desk_offset )
         elif currentCommand == DPGCommandType.GET_SET_MEMORY_POSITION_1:
             self._fav_position_1 = datatype.FavoritePosition(data)
-            _LOGGER.debug( "Favorite 1: %s", self._fav_position_1 )
+            self.logger.debug( "Favorite 1: %s", self._fav_position_1 )
             self._call_fav_callbacks(1)
         elif currentCommand == DPGCommandType.GET_SET_MEMORY_POSITION_2:
             self._fav_position_2 = datatype.FavoritePosition(data)
-            _LOGGER.debug( "Favorite 2: %s", self._fav_position_2 )
+            self.logger.debug( "Favorite 2: %s", self._fav_position_2 )
             self._call_fav_callbacks(2)
         elif currentCommand == DPGCommandType.GET_SET_MEMORY_POSITION_3:
             self._fav_position_3 = datatype.FavoritePosition(data)
-            _LOGGER.debug( "Favorite 3: %s", self._fav_position_3 )
+            self.logger.debug( "Favorite 3: %s", self._fav_position_3 )
             self._call_fav_callbacks(3)
         elif currentCommand == DPGCommandType.GET_SET_MEMORY_POSITION_4:
             self._fav_position_4 = datatype.FavoritePosition(data)
-            _LOGGER.debug( "Favorite 4: %s", self._fav_position_4 )
+            self.logger.debug( "Favorite 4: %s", self._fav_position_4 )
             self._call_fav_callbacks(4)
         elif currentCommand == DPGCommandType.GET_LOG_ENTRY:
             logData = data[2:]
             if len(logData) > 4:
                 logType = logData[0]
                 if logType == 135:
-                    _LOGGER.debug( "New position: %s", logData[1] )
+                    self.logger.debug( "New position: %s", logData[1] )
                 else:
-                    _LOGGER.debug( "Log: %s", to_hex_string(logData) )
+                    self.logger.debug( "Log: %s", to_hex_string(logData) )
             else:
-                _LOGGER.debug( "no log data" )
+                self.logger.debug( "no log data" )
         else:
-            _LOGGER.debug( "Command not handled: %r", currentCommand )
+            self.logger.debug( "Command not handled: %r", currentCommand )
 
     def _move_to_raw(self, raw_value):
         with self._conn as conn:
@@ -295,7 +296,7 @@ class LinakDesk:
             move_not_possible = (abs(raw_value - current_raw_height) < 10)
 
             if move_not_possible:
-                _LOGGER.debug("Move not possible, current raw height: %d", current_raw_height)
+                self.logger.debug("Move not possible, current raw height: %d", current_raw_height)
                 return
 
             DeskMover(conn, raw_value).start()
@@ -334,11 +335,11 @@ class LinakDesk:
             self._connect()
             return True
         except BaseException as e:
-            _LOGGER.error( "Initialization failed: %s %s", type(e), e )
+            self.logger.error( "Initialization failed: %s %s", type(e), e )
             return False
     
     def _connect(self):
-        _LOGGER.debug("Initializing the device")
+        self.logger.debug("Initializing the device")
         with self._conn as conn:
             """ We need to query for name before doing anything, without it device doesnt respond """
 
@@ -368,19 +369,19 @@ class LinakDesk:
             
             maskData = conn.read_characteristic_by_enum(linak_service.Characteristic.MASK)
             self._mask = datatype.Mask( maskData )
-            _LOGGER.debug("Received mask: %s", self._mask)
+            self.logger.debug("Received mask: %s", self._mask)
             
             deviceName = conn.read_characteristic_by_enum(linak_service.Characteristic.DEVICE_NAME)
             self._name = deviceName.decode("utf-8")
-            _LOGGER.debug("Received name: %s", self._name)
+            self.logger.debug("Received name: %s", self._name)
             
             manufacturer = conn.read_characteristic_by_enum(linak_service.Characteristic.MANUFACTURER)
             self._manu = manufacturer.decode("utf-8")
-            _LOGGER.debug("Received manufacturer: %s", self._manu)
+            self.logger.debug("Received manufacturer: %s", self._manu)
             
             model = conn.read_characteristic_by_enum(linak_service.Characteristic.MODEL_NUMBER)
             self._model = model.decode("utf-8")
-            _LOGGER.debug("Received model: %s", self._model)
+            self.logger.debug("Received model: %s", self._model)
             
             conn.subscribe_to_notification_enum(linak_service.Characteristic.DPG, self._handle_dpg_notification)
             conn.subscribe_to_notification_enum(linak_service.Characteristic.ERROR, self._handle_error_notification)
@@ -409,11 +410,11 @@ class LinakDesk:
             ## conn.send_dpg_read_command( DPGCommandType.GET_LOG_ENTRY )
             
             heightNotification = conn.read_characteristic_by_handle(linak_service.Characteristic.HEIGHT_SPEED.handle() + 1)
-            _LOGGER.debug("Notification status: %s", heightNotification)
+            self.logger.debug("Notification status: %s", heightNotification)
 
         self._notificationHandler.start()
 
-        _LOGGER.debug("Initialization done")
+        self.logger.debug("Initialization done")
     
     def disconnect(self):
         if self._notificationHandler != None:
@@ -482,25 +483,25 @@ class LinakDesk:
         fav = self.favorite_position(favNumber)
         if value==None:
             fav.position = None
-            _LOGGER.info("changed position %s %s", str(favNumber), str(value))
+            self.logger.info("changed position %s %s", str(favNumber), str(value))
         else:
             newValue = DeskPosition.from_cm(value)
             favPos = self._without_desk_offset( newValue )
             fav.position = favPos
-            _LOGGER.info("changed position %s %s %s", str(favNumber), str(value), favPos)
+            self.logger.info("changed position %s %s %s", str(favNumber), str(value), favPos)
         self._call_fav_callbacks(favNumber)
 
     def moveUp(self):
         ## custom: 71, 64 | 0
         ## standard: 71, 0
-#         _LOGGER.debug("Sending moveUp")
+#         self.logger.debug("Sending moveUp")
         with self._conn as conn:
             return conn.send_control_command( ControlCommand.MOVE_1_UP )
      
     def moveDown(self):
         ## custom: 70, 64 | 0
         ## standard: 70, 0
-#         _LOGGER.debug("Sending moveDown")
+#         self.logger.debug("Sending moveDown")
         with self._conn as conn:
             return conn.send_control_command( ControlCommand.MOVE_1_DOWN )
 
@@ -527,7 +528,7 @@ class LinakDesk:
      
     def stopMoving(self):
         with self._conn as conn:
-#             _LOGGER.debug("Sending stopMoving")
+#             self.logger.debug("Sending stopMoving")
             conn.send_control_command( ControlCommand.STOP_MOVING )
 
     def send_desk_height(self, cmValue):
@@ -542,7 +543,7 @@ class LinakDesk:
             value = self._desk_offset.bytes()
             ## add 1 at beginning
             value = bytes([1]) + value
-            _LOGGER.info("Sending offset: %s %s", value, to_hex_string(value) )
+            self.logger.info("Sending offset: %s %s", value, to_hex_string(value) )
             conn.send_dpg_write_command( DPGCommandType.DESK_OFFSET, value )
 
     ## after reeiving this command device's display should activate
@@ -567,7 +568,7 @@ class LinakDesk:
     def send_reminder_state(self):
         with self._conn as conn:
             value = self._reminder.raw_data()
-            _LOGGER.info("Sending reminder: %s %s %s", value, to_bin_string( value[0:1] ), to_hex_string(value[1:]) )
+            self.logger.info("Sending reminder: %s %s %s", value, to_bin_string( value[0:1] ), to_hex_string(value[1:]) )
             conn.send_dpg_write_command( DPGCommandType.REMINDER_SETTING, value )
             ## refresh device/display state
             self.activate_display()    
@@ -638,7 +639,7 @@ class LinakDesk:
                 value = pos.bytes()
                 ## add 1 at beginning
                 value = bytes([1]) + value
-            _LOGGER.info("Sending fav: %s %s %s %s", favNumber, value, to_bin_string( value ), to_hex_string( value ) )
+            self.logger.info("Sending fav: %s %s %s %s", favNumber, value, to_bin_string( value ), to_hex_string( value ) )
             conn.send_dpg_write_command( cmd, value )
 
     def _find_service(self, services, linakService):
@@ -650,35 +651,35 @@ class LinakDesk:
         raise RuntimeError("service not found: ", linakService)
 
     def print_services(self):
-        _LOGGER.debug("Discovering services")
+        self.logger.debug("Discovering services")
         with self._conn as conn:
             peripheral = conn._conn
             serviceList = peripheral.getServices()
             for s in serviceList:
                 sUuidString = linak_service.Service.printUUID(s.uuid)
-                _LOGGER.debug("" )
-                _LOGGER.debug("Service: %s", sUuidString)
+                self.logger.debug("" )
+                self.logger.debug("Service: %s", sUuidString)
                 charsList = s.getCharacteristics()
                 for ch in charsList:
                     charString = linak_service.Characteristic.printCharacteristic(ch)
-                    _LOGGER.debug("%s", charString)
+                    self.logger.debug("%s", charString)
 
                 descList = s.getDescriptors()
                 for desc in descList:
                     descUuidString = linak_service.Characteristic.printUUID(desc.uuid)
-                    _LOGGER.debug("Description: %s %s", descUuidString, hex(desc.handle) )
+                    self.logger.debug("Description: %s %s", descUuidString, hex(desc.handle) )
                       
-#             _LOGGER.debug("Characteristics:")
+#             self.logger.debug("Characteristics:")
 #             charsList = peripheral.getCharacteristics()
 #             for ch in charsList:
 #                 charString = linak_service.Characteristic.printCharacteristic(ch)
-#                 _LOGGER.debug("Char: %s", charString)
+#                 self.logger.debug("Char: %s", charString)
                   
-#             _LOGGER.debug("Descriptors:")
+#             self.logger.debug("Descriptors:")
 #             descList = peripheral.getDescriptors()
 #             for desc in descList:
-# #                 _LOGGER.debug("Desc: %s: %s", desc, desc.read())
-#                 _LOGGER.debug("Desc: %s", desc)
+# #                 self.logger.debug("Desc: %s: %s", desc, desc.read())
+#                 self.logger.debug("Desc: %s", desc)
 
 
     def _handle_error_notification(self, cHandle, data):
@@ -687,7 +688,7 @@ class LinakDesk:
         ### convert string to byte array
         data = bytearray(data)
  
-        _LOGGER.debug("XXXXX Received error data: [%s]", to_hex_string(data) )
+        self.logger.debug("XXXXX Received error data: [%s]", to_hex_string(data) )
         
     def _handle_heigh_speed_notification(self, cHandle, data):
         """Handle Callback from a Bluetooth (GATT) reference."""
@@ -698,9 +699,9 @@ class LinakDesk:
         self._height_speed = datatype.HeightSpeed.from_bytes( data )
         pos = self.current_height_with_offset.raw
         raw = self.current_height.raw
-        _LOGGER.debug("Received height: %s %s data: %s", pos, raw, self._height_speed)
+        self.logger.debug("Received height: %s %s data: %s", pos, raw, self._height_speed)
         
-        for hand in _LOGGER.handlers:
+        for hand in self.logger.handlers:
             hand.flush()
         
         if self._posChangeCallback != None:
@@ -714,13 +715,13 @@ class LinakDesk:
         ### convert string to byte array
         
         data = bytearray(data)
-        _LOGGER.debug("Received reference data: [%s]", to_hex_string(data) )
+        self.logger.debug("Received reference data: [%s]", to_hex_string(data) )
             
     def _handle_service_notification(self, cHandle, data):
         ### convert string to byte array
         
         data = bytearray(data)
-        _LOGGER.debug("Received service data: [%s]", to_hex_string(data) )
+        self.logger.debug("Received service data: [%s]", to_hex_string(data) )
         
     def processNotifications(self):
         return self._conn.processNotifications()
