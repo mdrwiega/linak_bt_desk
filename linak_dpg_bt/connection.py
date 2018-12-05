@@ -45,12 +45,14 @@ def DisconnectOnException(func):
 
 class BTLEConnection(btle.DefaultDelegate):
     """Representation of a BTLE Connection."""
+    
+    logger = None
+
 
     def __init__(self, mac):
         """Initialize the connection."""
         btle.DefaultDelegate.__init__(self)
 
-        self.logger = _LOGGER.getChild(self.__class__.__name__)
         self._conn = None
         self._mac = mac
         self._callbacks = {}
@@ -334,4 +336,6 @@ class BTLEConnection(btle.DefaultDelegate):
 
     def _waitForNotifications(self, timeout):
         return self._conn.waitForNotifications( timeout )
+
+BTLEConnection.logger = _LOGGER.getChild(BTLEConnection.__name__)
 

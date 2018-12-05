@@ -26,8 +26,11 @@ _LOGGER = logging.getLogger(__name__)
 
 
 class DeskMover:
+    
+    logger = None
+    
+    
     def __init__(self, conn, target):
-        self.logger = _LOGGER.getChild(self.__class__.__name__)
         self._conn = conn
         self._target = target
         self._running = False
@@ -66,10 +69,13 @@ class DeskMover:
         self._running = False
         self._stopTimer.cancel()
 
+DeskMover.logger = _LOGGER.getChild(DeskMover.__name__)
 
 
 class CommandThread(Thread):
     """Call passed callable in separate thread until stop requested."""
+    
+    logger = None
     
     INTERVAL = 0.3
     
@@ -77,7 +83,6 @@ class CommandThread(Thread):
     def __init__(self, hFunction, namePrefix=None):
         threadName = getThreadName(namePrefix)
         super(CommandThread, self).__init__(target=self._thread_loop, name=threadName)
-        self.logger = _LOGGER.getChild(self.__class__.__name__)
         self.daemon = True
         self.hFunction = hFunction
         self.stopEvent = Event()
@@ -99,12 +104,16 @@ class CommandThread(Thread):
                 break
             self.stopEvent.wait( self.INTERVAL )
         self.logger.debug( "thread terminated" )
+        
+CommandThread.logger = _LOGGER.getChild(CommandThread.__name__)
 
 
 class DeskMoverThread():
+    
+    logger = None
+    
 
     def __init__(self, device):
-        self.logger = _LOGGER.getChild(self.__class__.__name__)
         self.device = device
         self.thread = None
 
@@ -182,4 +191,6 @@ class DeskMoverThread():
             self.stopMoving()
             return False
         return True
+
+DeskMoverThread.logger = _LOGGER.getChild(DeskMoverThread.__name__)
 

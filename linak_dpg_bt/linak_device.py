@@ -45,12 +45,14 @@ class WrongFavoriteNumber(Exception):
 
 class NotificationHandler(Thread):
 
+    logger = None
+    
+
     def __init__(self, desk, namePrefix=None):
         if namePrefix is None:
             namePrefix = "NotifHndlr"
         threadName = getThreadName(namePrefix)
         Thread.__init__(self, name=threadName)
-        self.logger = _LOGGER.getChild(self.__class__.__name__)
         self.desk = desk
         self.daemon = True
         self.work = True
@@ -73,14 +75,17 @@ class NotificationHandler(Thread):
                 self.logger.error("exception occurred: %s %s", type(e), e)
                 break
 
+NotificationHandler.logger = _LOGGER.getChild(NotificationHandler.__name__)
+
 
 class LinakDesk:
-    
+
+    logger = None
+        
     CLIENT_ID = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17]
     
     
     def __init__(self, bdaddr):
-        self.logger = _LOGGER.getChild(self.__class__.__name__)
         self._bdaddr = bdaddr
         self._conn = BTLEConnection(bdaddr)
 
@@ -726,3 +731,5 @@ class LinakDesk:
     def processNotifications(self):
         return self._conn.processNotifications()
                 
+LinakDesk.logger = _LOGGER.getChild(LinakDesk.__name__)
+
