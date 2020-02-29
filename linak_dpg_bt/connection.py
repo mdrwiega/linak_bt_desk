@@ -290,7 +290,18 @@ class BTLEConnection(btle.DefaultDelegate):
             return retVal
         except btle.BTLEException as ex:
             self.logger.error("Got exception from bluepy while making a request: %s", ex)
-            raise ex
+            if ex.estat != 1:
+                raise ex
+            ## try to read characteristic by uuid
+            uuidValue = characteristicEnum.uuid()
+            self.logger.debug("trying to access characteristic by uuid: %s", uuidValue)
+            charsList = self._conn.getCharacteristics(uuid = uuidValue)
+            charLen = len(charsList)
+            if charLen != 1:
+                raise btle.BTLEException( "unable to get single characteristic object from %s, got objects %s" %(uuidValue, charLen) )
+                raise ex
+            charObject = charsList[0] 
+            return charObject.read()
         
     @synchronized
     @DisconnectOnException
