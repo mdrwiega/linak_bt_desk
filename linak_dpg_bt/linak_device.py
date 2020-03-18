@@ -340,7 +340,7 @@ class LinakDesk:
             self._connect()
             return True
         except BaseException as e:
-            self.logger.error( "Initialization failed: %s %s", type(e), e )
+            self.logger.exception( "Initialization failed: %s %s", type(e), e )
             return False
     
     def _connect(self):

@@ -102,7 +102,7 @@ class BTLEConnection(btle.DefaultDelegate):
                 connected = True
                 break
             except btle.BTLEException as ex:
-                self.logger.debug("Unable to connect to the device %s, reason: %s (%s)", self._mac, ex.message, ex.code)
+                self.logger.debug("Unable to connect to the device %s, reason: %s", self._mac, ex.message)
                 sleep(1)
                 
         if connected == False:
