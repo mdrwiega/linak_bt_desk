@@ -380,9 +380,16 @@ class LinakDesk:
             self._name = deviceName.decode("utf-8")
             self.logger.debug("Received name: %s", self._name)
             
-            manufacturer = conn.read_characteristic_by_enum(linak_service.Characteristic.MANUFACTURER)
-            self._manu = manufacturer.decode("utf-8")
-            self.logger.debug("Received manufacturer: %s", self._manu)
+            try: 
+                ## on IKEA branded devices MANUFACTURER characteristic returns binary content than 
+                ## is impossible to convert to UTF-8 string. It leads to exception.
+                manufacturer = conn.read_characteristic_by_enum(linak_service.Characteristic.MANUFACTURER)
+                self._manu = manufacturer.decode("utf-8")
+                self.logger.debug("Received manufacturer: %s", self._manu)
+            except UnicodeDecodeError as e:
+                self.logger.error( "Reading manufacturer failed: %s %s", type(e), e )
+                self._manu = "<unknown manufacturer>"
+                pass
             
             model = conn.read_characteristic_by_enum(linak_service.Characteristic.MODEL_NUMBER)
             self._model = model.decode("utf-8")
