@@ -113,38 +113,38 @@ class DeskMoverThread():
     logger = None
     
 
-    def __init__(self, device):
+    def __init__( self, device ):   ## device type: linak_dpg_bt.linak_device.LinakDesk
         self.device = device
         self.thread = None
 
     @synchronized
     def moveUp(self):
-        self.logger.info( "moving up" )
         self.stopMoving()
+        self.logger.info( "moving up" )
         self.spawnThread( self._handle_moveUp )
     
     @synchronized    
     def moveDown(self):
-        self.logger.info( "moving down" )
         self.stopMoving()
+        self.logger.info( "moving down" )
         self.spawnThread( self._handle_moveDown )
         
     @synchronized    
     def moveToTop(self):
-        self.logger.info( "moving top" )
         self.stopMoving()
+        self.logger.info( "moving top" )
         self.spawnThread( self._handle_moveTop )
         
     @synchronized    
     def moveToBottom(self):
-        self.logger.info( "moving bottom" )
         self.stopMoving()
+        self.logger.info( "moving bottom" )
         self.spawnThread( self._handle_moveBottom )
         
     @synchronized    
     def moveToFav(self, favIndex):
-        self.logger.info( "moving to fav %s" % (favIndex) )
         self.stopMoving()
+        self.logger.info( "moving to fav %s" % (favIndex) )
         self.logger.info( "initializing new thread" )
         favHandler = functools.partial(self._handle_moveToFav, favIndex)
         self.spawnThread( favHandler )
@@ -160,14 +160,16 @@ class DeskMoverThread():
     @synchronized("thread_lock")
     def spawnThread(self, handler):
         self.thread = CommandThread( handler, namePrefix="DeskMover" )
-        self.thread.start()
         self.logger.info( "new thread spawned %s" % (self.thread) )
+        self.thread.start()
     
     @synchronized("thread_lock")
     def extractThread(self):
         tmpThread = self.thread
         self.thread = None
         return tmpThread
+    
+    ## ========== thread actions ==========
 
     def _handle_moveUp(self):
         return self.device.moveUp()
