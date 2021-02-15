@@ -43,8 +43,8 @@ class DeskMover:
         self._stopTimer.start()
 
         with self._conn as conn:
-            conn.subscribe_to_notification(constants.REFERENCE_OUTPUT_NOTIFY_HANDLE, constants.REFERENCE_OUTPUT_HANDLE,
-                                           self._handle_notification)
+            conn.subscribe_to_notification(constants.REFERENCE_OUTPUT_NOTIFY_HANDLE,
+                constants.REFERENCE_OUTPUT_HANDLE, self._handle_notification)
 
             for _ in range(150):
                 if self._running:

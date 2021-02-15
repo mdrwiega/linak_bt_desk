@@ -168,7 +168,7 @@ class BTLEConnection(btle.DefaultDelegate):
             raise ex
 
     def subscribe_to_notification(self, notification_handle, notification_resp_handle, callback):
-        self.make_request(notification_handle, struct.pack('BB', 1, 0), with_response=False)
+        self.make_request(notification_handle, struct.pack('BB', 1, 0))
         self.set_callback(notification_resp_handle, callback)
 
 
